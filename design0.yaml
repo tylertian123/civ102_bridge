@@ -1,0 +1,8 @@
+train:
+    totalWeight: 400
+    wheelDistance: 176
+    wheelEdgeDistance: 52
+    carDistance: 60
+
+bridge:
+    length: 1300
