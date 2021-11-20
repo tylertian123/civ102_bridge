@@ -1,5 +1,4 @@
 import numpy as np
-from dataclasses import dataclass
 from typing import Any, Dict, List, Tuple
 
 import yaml
@@ -11,7 +10,7 @@ except ImportError:
 
 # A list of point loads [(loc1, load1), (loc2, load2), ...]
 # where loc1, loc2, ... are the distances of the loads from the left edge
-LoadingCondition = List[Tuple[float, float]]
+Forces = List[Tuple[float, float]]
 
 
 # A class to hold all the bridge and loading geometry constants
@@ -23,13 +22,14 @@ class Geometry:
         self.train_car_distance = values["train"]["carDistance"] # Distance between the edges of two train carriages
 
         self.bridge_length = values["bridge"]["length"] # Length of the entire bridge
+        self.bridge_supports = values["bridge"]["supports"] # Location of all the supports
 
     @classmethod
     def from_yaml(cls, file: str) -> "Geometry":
         return Geometry(yaml.load(open(file, "r", encoding="utf-8"), Loader))
 
 
-def load_train(geo: Geometry, dist: float) -> LoadingCondition:
+def load_train(geo: Geometry, dist: float) -> Forces:
     """
     Create loading condition for the train, with the right edge of the train at distance dist.
     """
@@ -39,10 +39,59 @@ def load_train(geo: Geometry, dist: float) -> LoadingCondition:
         offset = i * (geo.train_wheel_distance + 2 * geo.train_wheel_edge_distance + geo.train_car_distance)
         loads.append(dist - offset - geo.train_wheel_edge_distance)
         loads.append(dist - offset - geo.train_wheel_edge_distance - geo.train_wheel_distance)
-    # Sort loads in ascending order of location and exclude loads not on the bridge
-    return [(loc, geo.train_wheel_load) for loc in sorted(loads) if 0 <= loc <= geo.bridge_length]
+    # Sort loads in ascending order of location and exclude loads not on the bridge (negative because load is down)
+    return [(loc, -geo.train_wheel_load) for loc in sorted(loads) if 0 <= loc <= geo.bridge_length]
+
+
+def reaction_forces(geo: Geometry, loads: Forces) -> Forces:
+    """
+    Compute the two reaction forces and add them to the forces.
+    """
+    # Sum of moments
+    ma = sum(load * (loc - geo.bridge_supports[0]) for loc, load in loads)
+    fb = (0 - ma) / (geo.bridge_supports[1] - geo.bridge_supports[0])
+    fa = -sum(load for _, load in loads) - fb
+    forces = loads + [(geo.bridge_supports[0], fa), (geo.bridge_supports[1], fb)]
+    forces.sort()
+    return forces
+
+
+def make_sfd(geo: Geometry, loads: Forces) -> np.ndarray:
+    """
+    Compute the Shear Force Diagram from loads.
+    """
+    shear = [0] * (geo.bridge_length + 1) # One point per mm
+    # Accumulate point loads
+    s = x = i = 0
+    while x < len(shear) and i < len(loads):
+        # For every point load reached, add its value
+        if x <= loads[i][0] and x + 1 > loads[i][0]:
+            s += loads[i][1]
+        shear[x] = s
+        # Increment x value and next point load
+        x += 1
+        if x > loads[i][0]:
+            i += 1
+    if abs(shear[-1]) > 1e-5:
+        raise ValueError("Final shear not equal to zero!")
+    return np.array(shear)
+
+
+def make_bmd(geo: Geometry, sfd: np.ndarray) -> np.ndarray:
+    """
+    Compute the Bending Moment Diagram from the Shear Force Diagram.
+    """
+    bmd = [0] * len(sfd)
+    moment = 0
+    for x in range(len(sfd)):
+        moment += sfd[x]
+        bmd[x] = moment
+    return np.array(bmd)
 
 
 if __name__ == "__main__":
     geo = Geometry.from_yaml("design0.yaml")
-    print(load_train(geo, 960))
+    forces = reaction_forces(geo, load_train(geo, 960))
+    from matplotlib import pyplot as plt
+    plt.plot(np.arange(0, geo.bridge_length + 1, 1), make_bmd(geo, make_sfd(geo, forces)))
+    plt.show()

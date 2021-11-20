@@ -6,3 +6,6 @@ train:
 
 bridge:
     length: 1300
+    supports:
+        - 25
+        - 1085
