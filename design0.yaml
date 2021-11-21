@@ -26,5 +26,6 @@ bridge: # Bridge properties
         - [10, 0, 1.27, 73.73] # Side pieces
         - [88.73, 0, 1.27, 73.73] # Side pieces
         - [11.27, 0, 77.46, 1.27] # Bottom piece
+      minBHeight: null # Height of the depth that has the least width b; null if centroidal axis
       start: 0 # Where the cross section starts
       stop: 1300 # Where the cross section ends

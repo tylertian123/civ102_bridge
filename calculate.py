@@ -1,6 +1,8 @@
 import numpy as np
-from typing import Any, Dict, List, Tuple
+import math
+from typing import Any, Dict, List, Optional, Tuple
 from matplotlib import pyplot as plt, patches
+from matplotlib.axes import Axes
 
 import yaml
 try:
@@ -14,10 +16,26 @@ except ImportError:
 Forces = List[Tuple[float, float]]
 
 
+def floatgeq(a: float, b: float) -> bool:
+    """
+    Test floats for greater than or almost-equality.
+    """
+    return a > b or math.isclose(a, b, rel_tol=1e-7, abs_tol=1e-7)
+
+
+def floatleq(a: float, b: float) -> bool:
+    """
+    Test floats for less than or almost-equality.
+    """
+    return a < b or math.isclose(a, b, rel_tol=1e-7, abs_tol=1e-7)
+
+
 # A class to hold and compute properties of cross sections
 class CrossSection:
     def __init__(self, values: Dict[str, Any]) -> None:
+        # Geometry consists of a list of rectangles in the form of [x, y, width, height]
         self.geometry = values["geometry"]
+        self.min_b_height = values["minBHeight"]
 
         # Compute properties
         self.ytop = max(y + h for _, y, _, h in self.geometry)
@@ -25,9 +43,64 @@ class CrossSection:
         self.area = sum(w * h for _, _, w, h in self.geometry)
         self.ybar = sum(w * h * (y + h / 2) for _, y, w, h in self.geometry) / self.area
         # Parallel axis theorem, with I of each piece being bh^3/12
-        self.i = sum(w * h ** 3 / 12 + (y + h / 2 - self.ybar) ** 2 for x, y, w, h in self.geometry)
+        self.i = sum(w * h ** 3 / 12 + (y + h / 2 - self.ybar) ** 2 for _, y, w, h in self.geometry)
     
-    def visualize(self, ax) -> None:
+    def calculate_b(self, y0: float, above: Optional[bool] = None) -> None:
+        """
+        Calculate the total cross-sectional width b at depth y0.
+
+        above specifies boundary behaviour. If it's true, then when y0 is at a boundary, the piece's width
+        is only counted if it's above y0; if it's false, then the piece's width is only counted if it's below y0.
+        If it's None, then the lesser of the two will be returned.
+        """
+        if above is None:
+            return min(self.calculate_b(y0, True), self.calculate_b(y0, False))
+        # Consider the piece if y0 is in the middle of it
+        # That is, y + h should be above y0, and y should be below y0
+        # Note float comparisions...
+        return sum(w for _, y, w, h in self.geometry
+                if floatgeq(y + h, y0) and floatleq(y, y0)
+                # And then consider whether the rest of the piece is above or below y0
+                and ((above and y + h > y0) or (not above and y < y0)))
+
+    def calculate_q(self, y0: float) -> None:
+        """
+        Calculate the first moment of area about the centroid, Q, for a given depth y0 (relative to the bottom).
+        """
+        # Integrate from the top
+        q = 0
+        for _, y, w, h in self.geometry:
+            # Do not consider pieces entirely below y0
+            # We don't need to worry about direct float comparision here
+            # If y + h is very close to y0, then the amount of this piece above y0 is very small
+            # So most of it will be cut out in the following calculations
+            if y + h < y0:
+                continue
+            # If the bottom of the piece is below y0, cut it off at y0
+            bottom = max(y, y0)
+            # Update height according to new bottom
+            h = y + h - bottom
+            # Add up the pieces
+            # bottom + h / 2 is the local centroid of the piece
+            q += w * h * ((bottom + h / 2) - self.ybar)
+        # Since the distance from ybar is signed, the resulting Q might be negative
+        # But shear stress doesn't really have a direction so Q is taken to be the absolute value
+        return abs(q)
+    
+    def calculate_shear_failure_force(self, tau: float) -> float:
+        """
+        Calculate the shear force Vfail that causes shear failure of the matboard.
+
+        tau is the shear strength of the matboard.
+        """
+        # tau = VQ/Ib => V = tau*Ib/Q
+        # Consider two points: the centroid, where Q is maximized, and the depth where b is minimized
+        v = tau * self.i * self.calculate_b(self.ybar, above=None) / self.calculate_q(self.ybar)
+        if self.min_b_height is not None:
+            v = min(v, tau * self.i * self.calculate_b(self.min_b_height, above=None) / self.calculate_q(self.min_b_height))
+        return v
+
+    def visualize(self, ax: Axes) -> None:
         """
         Draw the cross section onto a matplotlib plot to visualize it.
         """
@@ -186,19 +259,26 @@ class Bridge:
             return sigma1
         return -sigma2
 
+    def calculate_shear_failure_force(self) -> float:
+        """
+        Calculate the shear force Vfail that would result in matboard shear failure.
+        """
+        return min(cs.calculate_shear_failure_force(self.tau) for _, _, cs in self.cross_sections)
 
-if __name__ == "__main__":
+
+def main():
     bridge = Bridge.from_yaml("design0.yaml")
-    #loads = bridge.load_points(200)
-    loads = bridge.load_train(960)
+    loads = bridge.load_points(200)
+    #loads = bridge.load_train(960)
     forces = bridge.reaction_forces(loads)
 
     sfd = bridge.make_sfd(forces)
     bmd = bridge.make_bmd(sfd)
     phi = bridge.make_curvature_diagram(bmd)
 
-    print(bridge.calculate_tensile_failure_moment())
-    print(bridge.calculate_compressive_failure_moment())
+    print("Tensile Mfail:", bridge.calculate_tensile_failure_moment())
+    print("Compressive Mfail:", bridge.calculate_compressive_failure_moment())
+    print("Matboard Vfail:", bridge.calculate_shear_failure_force())
 
     x = np.arange(0, bridge.length + 1, 1)
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
@@ -214,3 +294,7 @@ if __name__ == "__main__":
 
     bridge.cross_sections[0][2].visualize(plt.gca())
     plt.show()
+
+
+if __name__ == "__main__":
+    main()
