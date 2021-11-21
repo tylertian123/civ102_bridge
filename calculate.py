@@ -1,5 +1,6 @@
 import numpy as np
 import math
+import itertools
 from typing import Any, Dict, List, Optional, Tuple
 from matplotlib import pyplot as plt, patches
 from matplotlib.axes import Axes
@@ -34,8 +35,13 @@ def floatleq(a: float, b: float) -> bool:
 class CrossSection:
     def __init__(self, values: Dict[str, Any]) -> None:
         # Geometry consists of a list of rectangles in the form of [x, y, width, height]
-        self.geometry = values["geometry"]
+        self.geometry = list(values["geometry"].values())
         self.min_b_height = values["minBHeight"]
+        # An array of glued components, with form (geom, b)
+        # Where geom is a list of rectangles that make up the component and b is the glue area
+        self.glued_components = [(
+                [values["geometry"][name] for name in c["pieces"]], c["glueArea"])
+            for c in values["gluedComponents"]]
 
         # Compute properties
         self.ytop = max(y + h for _, y, _, h in self.geometry)
@@ -87,7 +93,7 @@ class CrossSection:
         # But shear stress doesn't really have a direction so Q is taken to be the absolute value
         return abs(q)
     
-    def calculate_shear_failure_force(self, tau: float) -> float:
+    def calculate_matboard_vfail(self, tau: float) -> float:
         """
         Calculate the shear force Vfail that causes shear failure of the matboard.
 
@@ -99,13 +105,29 @@ class CrossSection:
         if self.min_b_height is not None:
             v = min(v, tau * self.i * self.calculate_b(self.min_b_height, above=None) / self.calculate_q(self.min_b_height))
         return v
+    
+    def calculate_glue_vfail(self, tau: float) -> float:
+        """
+        Calculate the shear force Vfail that causes shear failure of the glue.
+        
+        tau is the shear strength of the glue.
+        """
+        # Calculate for each glued component
+        # V = tau*Ib/Q for each component like above
+        # The b of each piece is provided in the cross section specifications
+        # The Q is equal to the absolute value of the sum of area times centroidal distance
+        return tau * self.i * min(b / abs(sum(w * h * (y + h / 2 - self.ybar) for _, y, w, h in geom))
+            for geom, b in self.glued_components)
 
     def visualize(self, ax: Axes) -> None:
         """
         Draw the cross section onto a matplotlib plot to visualize it.
         """
         for x, y, w, h in self.geometry:
-            ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=1, edgecolor="b", facecolor="none"))
+            ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=1, edgecolor="k", facecolor="none"))
+        for (geom, _), color in zip(self.glued_components, itertools.cycle("bgcmy")):
+            for x, y, w, h in geom:
+                ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=1, edgecolor=color, facecolor="none"))
         xmin = min(x for x, _, _, _ in self.geometry)
         xmax = max(x + w for x, _, w, _ in self.geometry)
         ymin = min(y for _, y, _, _ in self.geometry)
@@ -223,7 +245,7 @@ class Bridge:
             phi.append(bmd[x] / (self.e * cs[2].i))
         return np.array(phi)
 
-    def calculate_tensile_failure_moment(self) -> float:
+    def calculate_tensile_mfail(self) -> float:
         """
         Calculate the bending moment Mfail that would cause a matboard flexural tensile failure.
 
@@ -241,7 +263,7 @@ class Bridge:
             return -sigma1
         return sigma2
     
-    def calculate_compressive_failure_moment(self) -> float:
+    def calculate_compressive_mfail(self) -> float:
         """
         Calculate the bending moment Mfail that would cause a matboard flexural compressive failure.
 
@@ -259,11 +281,17 @@ class Bridge:
             return sigma1
         return -sigma2
 
-    def calculate_shear_failure_force(self) -> float:
+    def calculate_matboard_vfail(self) -> float:
         """
         Calculate the shear force Vfail that would result in matboard shear failure.
         """
-        return min(cs.calculate_shear_failure_force(self.tau) for _, _, cs in self.cross_sections)
+        return min(cs.calculate_matboard_vfail(self.tau) for _, _, cs in self.cross_sections)
+    
+    def calculate_glue_vfail(self) -> float:
+        """
+        Calculate the shear force Vfail that causes shear failure of the glue.
+        """
+        return min(cs.calculate_glue_vfail(self.glue_tau) for _, _, cs in self.cross_sections)
 
 
 def main():
@@ -276,16 +304,30 @@ def main():
     bmd = bridge.make_bmd(sfd)
     phi = bridge.make_curvature_diagram(bmd)
 
-    print("Tensile Mfail:", bridge.calculate_tensile_failure_moment())
-    print("Compressive Mfail:", bridge.calculate_compressive_failure_moment())
-    print("Matboard Vfail:", bridge.calculate_shear_failure_force())
+    # TODO: These aren't quite right
+    # They probably need to be different based on location
+    tmfail = bridge.calculate_tensile_mfail()
+    cmfail = bridge.calculate_compressive_mfail()
+    mvfail = bridge.calculate_matboard_vfail()
+    gvfail = bridge.calculate_glue_vfail()
+
+    print("Tensile Mfail:", tmfail)
+    print("Compressive Mfail:", cmfail)
+    print("Matboard Vfail:", mvfail)
+    print("Glue Vfail:", gvfail)
 
     x = np.arange(0, bridge.length + 1, 1)
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
     ax1.scatter([f[0] for f in forces], [f[1] for f in forces])
     ax1.set_title("Loads")
-    ax2.plot(x, sfd)
+    ax2.plot(x, sfd, label="Shear Force")
+    ax2.axhline(0, c="k")
+    ax2.axhline(mvfail, color="r", label="Matboard Vfail")
+    ax2.axhline(-mvfail, color="r")
+    ax2.axhline(gvfail, color="y", label="Glue Vfail")
+    ax2.axhline(-gvfail, color="y")
     ax2.set_title("Shear Force")
+    ax2.legend(loc="best")
     ax3.plot(x, bmd)
     ax3.set_title("Bending Moment")
     ax4.plot(x, phi)

@@ -19,13 +19,17 @@ bridge: # Bridge properties
     - 25
     - 1085
   crossSections:
-    - geometry: # Geometry of the cross section, a list of rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
-        - [0, 73.73, 100, 1.27] # Top piece
-        - [11.27, 72.46, 10, 1.27] # Glue tabs
-        - [78.73, 72.46, 10, 1.27]
-        - [10, 0, 1.27, 73.73] # Side pieces
-        - [88.73, 0, 1.27, 73.73] # Side pieces
-        - [11.27, 0, 77.46, 1.27] # Bottom piece
+    - geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
+        top: [0, 73.73, 100, 1.27]
+        gluetab1: [11.27, 72.46, 10, 1.27]
+        gluetab2: [78.73, 72.46, 10, 1.27]
+        side1: [10, 0, 1.27, 73.73]
+        side2: [88.73, 0, 1.27, 73.73]
+        bottom: [11.27, 0, 77.46, 1.27]
       minBHeight: null # Height of the depth that has the least width b; null if centroidal axis
+      gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
+        - pieces: # A list of names of pieces that make up this glued component; names are from geometry
+          - top
+          glueArea: 22.54 # Total area of glue (b)
       start: 0 # Where the cross section starts
       stop: 1300 # Where the cross section ends
