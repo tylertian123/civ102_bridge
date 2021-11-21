@@ -1,27 +1,30 @@
-train:
-  totalWeight: 400
-  wheelDistance: 176
-  wheelEdgeDistance: 52
-  carDistance: 60
+loading: # Loading conditions
+  train:
+    totalWeight: 400 # Total weight of all 3 carriages
+    wheelDistance: 176 # Distance between two wheels on the same carriage
+    wheelEdgeDistance: 52 # Distance between the wheel and the edge of the train
+    carDistance: 60 # Distance between the edges of two carriages
+  points: [575, 1275] # Location of the two point loads, relative to the left end of the bridge
 
-bridge:
-  material:
+bridge: # Bridge properties
+  material: # Material properties
     sigmat: 30
     sigmac: 6
     tau: 4
     e: 4000
     nu: 0.2
-  length: 1300
-  supports:
+    glueTau: 2
+  length: 1300 # Total length
+  supports: # Location of the supports
     - 25
     - 1085
   crossSections:
-    - geometry:
+    - geometry: # Geometry of the cross section, a list of rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
         - [0, 73.73, 100, 1.27] # Top piece
         - [11.27, 72.46, 10, 1.27] # Glue tabs
         - [78.73, 72.46, 10, 1.27]
         - [10, 0, 1.27, 73.73] # Side pieces
         - [88.73, 0, 1.27, 73.73] # Side pieces
         - [11.27, 0, 77.46, 1.27] # Bottom piece
-      from: 0
-      to: 1300
+      start: 0 # Where the cross section starts
+      stop: 1300 # Where the cross section ends

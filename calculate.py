@@ -17,15 +17,23 @@ Forces = List[Tuple[float, float]]
 # A class to hold all the bridge and loading geometry constants
 class Geometry:
     def __init__(self, values: Dict[str, Any]) -> None:
-        self.train_wheel_load = values["train"]["totalWeight"] / 3 / 2 # Load on each wheel
-        self.train_wheel_distance = values["train"]["wheelDistance"] # Distance between two wheels on the same carriage
-        self.train_wheel_edge_distance = values["train"]["wheelEdgeDistance"] # Distance between the wheel and edge of the carriage
-        self.train_car_distance = values["train"]["carDistance"] # Distance between the edges of two train carriages
+        self.train_wheel_load = values["loading"]["train"]["totalWeight"] / 3 / 2 # Load on each wheel
+        self.train_wheel_distance = values["loading"]["train"]["wheelDistance"] # Distance between two wheels on the same carriage
+        self.train_wheel_edge_distance = values["loading"]["train"]["wheelEdgeDistance"] # Distance between the wheel and edge of the carriage
+        self.train_car_distance = values["loading"]["train"]["carDistance"] # Distance between the edges of two train carriages
+        self.point_load_locations = values["loading"]["points"]
 
-        self.bridge_length = values["bridge"]["length"] # Length of the entire bridge
-        self.bridge_supports = values["bridge"]["supports"] # Location of all the supports
+        self.length = values["bridge"]["length"] # Length of the entire bridge
+        self.supports = values["bridge"]["supports"] # Location of all the supports
 
-        self.bridge_cross_sections = [CrossSection(d) for d in values["bridge"]["crossSections"]]
+        self.sigmat = values["bridge"]["material"]["sigmat"] # Ultimate tensile stress
+        self.sigmac = values["bridge"]["material"]["sigmac"] # Ultimate compressive stress
+        self.tau = values["bridge"]["material"]["tau"] # Max shear
+        self.glue_tau = values["bridge"]["material"]["glueTau"]
+        self.e = values["bridge"]["material"]["e"] # Young's modulus
+        self.nu = values["bridge"]["material"]["nu"] # Poisson's ratio
+
+        self.cross_sections = [(d["start"], d["stop"], CrossSection(d)) for d in values["bridge"]["crossSections"]]
     @classmethod
     def from_yaml(cls, file: str) -> "Geometry":
         return Geometry(yaml.load(open(file, "r", encoding="utf-8"), Loader))
@@ -37,7 +45,10 @@ class CrossSection:
         self.geometry = values["geometry"]
 
         # Compute properties
-        self.ybar = sum(w * h * (y + h / 2) for x, y, w, h in self.geometry) / sum(w * h for _, _, w, h in self.geometry)
+        self.ytop = max(y + h for _, y, _, h in self.geometry)
+        self.ybot = min(y for _, y, _, h in self.geometry)
+        self.area = sum(w * h for _, _, w, h in self.geometry)
+        self.ybar = sum(w * h * (y + h / 2) for _, y, w, h in self.geometry) / self.area
         # Parallel axis theorem, with I of each piece being bh^3/12
         self.i = sum(w * h ** 3 / 12 + (y + h / 2 - self.ybar) ** 2 for x, y, w, h in self.geometry)
     
@@ -51,6 +62,7 @@ class CrossSection:
         ax.set_ylim(min(y for _, y, _, _ in self.geometry) - 10, max(y + h for _, y, _, h in self.geometry) + 10)
         ax.set_aspect("equal")
 
+
 def load_train(geo: Geometry, dist: float) -> Forces:
     """
     Create loading condition for the train, with the right edge of the train at distance dist.
@@ -62,7 +74,14 @@ def load_train(geo: Geometry, dist: float) -> Forces:
         loads.append(dist - offset - geo.train_wheel_edge_distance)
         loads.append(dist - offset - geo.train_wheel_edge_distance - geo.train_wheel_distance)
     # Sort loads in ascending order of location and exclude loads not on the bridge (negative because load is down)
-    return [(loc, -geo.train_wheel_load) for loc in sorted(loads) if 0 <= loc <= geo.bridge_length]
+    return [(loc, -geo.train_wheel_load) for loc in sorted(loads) if 0 <= loc <= geo.length]
+
+
+def load_points(geo: Geometry, p: float) -> Forces:
+    """
+    Create loading condition for applying loads P at each location in the geometry.
+    """
+    return [(loc, -p) for loc in geo.point_load_locations]
 
 
 def reaction_forces(geo: Geometry, loads: Forces) -> Forces:
@@ -70,10 +89,13 @@ def reaction_forces(geo: Geometry, loads: Forces) -> Forces:
     Compute the two reaction forces and add them to the forces.
     """
     # Sum of moments
-    ma = sum(load * (loc - geo.bridge_supports[0]) for loc, load in loads)
-    fb = (0 - ma) / (geo.bridge_supports[1] - geo.bridge_supports[0])
+    ma = sum(load * (loc - geo.supports[0]) for loc, load in loads)
+    # Sum of moments + Fb * distance of b = 0
+    fb = (0 - ma) / (geo.supports[1] - geo.supports[0])
+    # Sum of forces + Fb + Fa = 0
     fa = -sum(load for _, load in loads) - fb
-    forces = loads + [(geo.bridge_supports[0], fa), (geo.bridge_supports[1], fb)]
+    # Add forces to array
+    forces = loads + [(geo.supports[0], fa), (geo.supports[1], fb)]
     forces.sort()
     return forces
 
@@ -82,7 +104,7 @@ def make_sfd(geo: Geometry, loads: Forces) -> np.ndarray:
     """
     Compute the Shear Force Diagram from loads.
     """
-    shear = [0] * (geo.bridge_length + 1) # One point per mm
+    shear = [0] * (geo.length + 1) # One point per mm
     # Accumulate point loads
     s = x = i = 0
     while x < len(shear) and i < len(loads):
@@ -111,12 +133,31 @@ def make_bmd(geo: Geometry, sfd: np.ndarray) -> np.ndarray:
     return np.array(bmd)
 
 
+def make_curvature_diagram(geo: Geometry, bmd: np.ndarray) -> np.ndarray:
+    """
+    Compute the Curvature Diagram from the Bending Moment Diagram.
+    """
+    i = 0
+    cs = geo.cross_sections[i]
+    phi = []
+    for x in range(len(bmd)):
+        # Find the right cross section
+        while x > cs[1]:
+            i += 1
+            cs = geo.cross_sections[i]
+        # Curvature phi = M / EI
+        phi.append(bmd[x] / (geo.e * cs[2].i))
+    return np.array(phi)
+
+
 if __name__ == "__main__":
     geo = Geometry.from_yaml("design0.yaml")
-    #forces = reaction_forces(geo, load_train(geo, 960))
+    loads = load_points(geo, 200) #load_train(geo, 960)
+    forces = reaction_forces(geo, loads)
 
-    #plt.plot(np.arange(0, geo.bridge_length + 1, 1), make_bmd(geo, make_sfd(geo, forces)))
-    #plt.show()
+    sfd = make_sfd(geo, forces)
+    bmd = make_bmd(geo, sfd)
+    phi = make_curvature_diagram(geo, bmd)
 
-    geo.bridge_cross_sections[0].visualize(plt.gca())
+    plt.plot(np.arange(0, geo.length + 1, 1), phi)
     plt.show()
