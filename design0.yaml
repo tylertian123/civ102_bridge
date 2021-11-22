@@ -4,7 +4,7 @@ loading: # Loading conditions
     wheelDistance: 176 # Distance between two wheels on the same carriage
     wheelEdgeDistance: 52 # Distance between the wheel and the edge of the train
     carDistance: 60 # Distance between the edges of two carriages
-  points: [575, 1275] # Location of the two point loads, relative to the left end of the bridge
+  points: [565, 1265] # Location of the two point loads, relative to the left end of the bridge
 
 bridge: # Bridge properties
   material: # Material properties
@@ -14,10 +14,10 @@ bridge: # Bridge properties
     e: 4000
     nu: 0.2
     glueTau: 2
-  length: 1300 # Total length
+  length: 1280 # Total length
   supports: # Location of the supports
-    - 25
-    - 1085
+    - 15
+    - 1075
   crossSections:
     - geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
         top: [0, 73.73, 100, 1.27]
@@ -32,4 +32,4 @@ bridge: # Bridge properties
           - top
           glueArea: 22.54 # Total area of glue (b)
       start: 0 # Where the cross section starts
-      stop: 1300 # Where the cross section ends
+      stop: 1280 # Where the cross section ends

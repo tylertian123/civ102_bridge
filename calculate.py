@@ -245,53 +245,65 @@ class Bridge:
             phi.append(bmd[x] / (self.e * cs[2].i))
         return np.array(phi)
 
-    def calculate_tensile_mfail(self) -> float:
+    def calculate_tensile_mfail(self) -> Tuple[np.ndarray, np.ndarray]:
         """
         Calculate the bending moment Mfail that would cause a matboard flexural tensile failure.
 
-        Returns a signed quantity. The absolute value of the return value is required magnitude of the bending moment;
-        the sign indicates the direction (positive - positive moment, bottom in tension;
-        negative - negative moment, top in tension)
+        Returns two numpy arrays, consisting of an upper and lower bound (lower bound will be negative).
+        If the bending moment is higher than the upper bound or more negative than the lower bound then the
+        structure will fail.
         """
-        # Need to do this for each cross section since they're all different
-        # sigma = M*y/I => M = sigma*I/y
-        # sigma1 is for when the top is in tension, i.e. negative curvature
-        sigma1 = min(self.sigmat * cs.i / (cs.ytop - cs.ybar) for _, _, cs in self.cross_sections)
-        # When the bottom is in tension, i.e. positive curvature
-        sigma2 = min(self.sigmat * cs.i / (cs.ybar - cs.ybot) for _, _, cs in self.cross_sections)
-        if sigma1 < sigma2:
-            return -sigma1
-        return sigma2
+        upper = []
+        lower = []
+        for start, stop, cs in self.cross_sections:
+            # sigma = M*y/I => M = sigma*I/y
+            # sigma1 is for when the top is in tension, i.e. negative moment
+            # sigma1 will come out negative since ybar < ytop
+            sigma1 = self.sigmat * cs.i / (cs.ybar - cs.ytop)
+            # When the bottom is in tension, i.e. positive moment
+            sigma2 = self.sigmat * cs.i / (cs.ybar - cs.ybot)
+            upper.extend([sigma2] * (stop - start + 1))
+            lower.extend([sigma1] * (stop - start + 1))
+        return np.array(upper), np.array(lower)
     
-    def calculate_compressive_mfail(self) -> float:
+    def calculate_compressive_mfail(self) -> Tuple[np.ndarray, np.ndarray]:
         """
         Calculate the bending moment Mfail that would cause a matboard flexural compressive failure.
 
-        Returns a signed quantity. The absolute value of the return value is required magnitude of the bending moment;
-        the sign indicates the direction (positive - positive moment, top in compression;
-        negative - negative moment, bottom in compression)
+        Returns two numpy arrays, consisting of an upper and lower bound (lower bound will be negative).
+        If the bending moment is higher than the upper bound or more negative than the lower bound then the
+        structure will fail.
         """
         # See logic above
-        # sigma1 is for when the top is in compression, i.e. positive curvature
-        sigma1 = min(self.sigmac * cs.i / (cs.ytop - cs.ybar) for _, _, cs in self.cross_sections)
-        # When the bottom is in compression, i.e. negative curvature
-        sigma2 = min(self.sigmac * cs.i / (cs.ybar - cs.ybot) for _, _, cs in self.cross_sections)
-        # This time return sigma1 as positive and sigma2 as negative
-        if sigma1 < sigma2:
-            return sigma1
-        return -sigma2
+        upper = []
+        lower = []
+        for start, stop, cs in self.cross_sections:
+            # sigma1 is for when the top is in compression, i.e. positive curvature
+            sigma1 = self.sigmac * cs.i / (cs.ytop - cs.ybar)
+            # When the bottom is in compression, i.e. negative curvature
+            # ybot - ybar is negative so this will come out negative
+            sigma2 = self.sigmac * cs.i / (cs.ybot - cs.ybar)
+            upper.extend([sigma1] * (stop - start + 1))
+            lower.extend([sigma2] * (stop - start + 1))
+        return np.array(upper), np.array(lower)
 
-    def calculate_matboard_vfail(self) -> float:
+    def calculate_matboard_vfail(self) -> np.ndarray:
         """
         Calculate the shear force Vfail that would result in matboard shear failure.
         """
-        return min(cs.calculate_matboard_vfail(self.tau) for _, _, cs in self.cross_sections)
+        vfail = []
+        for start, stop, cs in self.cross_sections:
+            vfail.extend([cs.calculate_matboard_vfail(self.tau)] * (stop - start + 1))
+        return np.array(vfail)
     
-    def calculate_glue_vfail(self) -> float:
+    def calculate_glue_vfail(self) -> np.ndarray:
         """
         Calculate the shear force Vfail that causes shear failure of the glue.
         """
-        return min(cs.calculate_glue_vfail(self.glue_tau) for _, _, cs in self.cross_sections)
+        vfail = []
+        for start, stop, cs in self.cross_sections:
+            vfail.extend([cs.calculate_glue_vfail(self.glue_tau)] * (stop - start + 1))
+        return np.array(vfail)
 
 
 def main():
@@ -304,38 +316,46 @@ def main():
     bmd = bridge.make_bmd(sfd)
     phi = bridge.make_curvature_diagram(bmd)
 
-    # TODO: These aren't quite right
-    # They probably need to be different based on location
-    tmfail = bridge.calculate_tensile_mfail()
-    cmfail = bridge.calculate_compressive_mfail()
+    # Tensile Mfail Upper, Tensile Mfail Lower
+    tmfailu, tmfaill = bridge.calculate_tensile_mfail()
+    # Compressive Mfail Upper, Compressive Mfail Lower
+    cmfailu, cmfaill = bridge.calculate_compressive_mfail()
+    # Matboard Vfail
     mvfail = bridge.calculate_matboard_vfail()
+    # Glue Vfail
     gvfail = bridge.calculate_glue_vfail()
-
-    print("Tensile Mfail:", tmfail)
-    print("Compressive Mfail:", cmfail)
-    print("Matboard Vfail:", mvfail)
-    print("Glue Vfail:", gvfail)
 
     x = np.arange(0, bridge.length + 1, 1)
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
+
     ax1.scatter([f[0] for f in forces], [f[1] for f in forces])
     ax1.set_title("Loads")
-    ax2.plot(x, sfd, label="Shear Force")
+
     ax2.axhline(0, c="k")
-    ax2.axhline(mvfail, color="r", label="Matboard Vfail")
-    ax2.axhline(-mvfail, color="r")
-    ax2.axhline(gvfail, color="y", label="Glue Vfail")
-    ax2.axhline(-gvfail, color="y")
+    ax2.plot(x, sfd, label="Shear Force")
+    ax2.plot(x, gvfail, c="r", label="Glue Vfail")
+    ax2.plot(x, mvfail, c="tab:orange", label="Matboard Vfail")
+    ax2.plot(x, -gvfail, c="r")
+    ax2.plot(x, -mvfail, c="tab:orange")
     ax2.set_title("Shear Force")
     ax2.legend(loc="best")
+
+    ax3.axhline(0, c="k")
     ax3.plot(x, bmd)
+    ax3.plot(x, tmfailu, c="r", label="Tensile Mfail")
+    ax3.plot(x, cmfailu, c="tab:orange", label="Compressive Mfail")
+    ax3.plot(x, tmfaill, c="r")
+    ax3.plot(x, cmfaill, c="tab:orange")
     ax3.set_title("Bending Moment")
+    ax3.legend(loc="best")
+
     ax4.plot(x, phi)
     ax4.set_title("Curvature")
+
     plt.show()
 
-    bridge.cross_sections[0][2].visualize(plt.gca())
-    plt.show()
+    #bridge.cross_sections[0][2].visualize(plt.gca())
+    #plt.show()
 
 
 if __name__ == "__main__":
