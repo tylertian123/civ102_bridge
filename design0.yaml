@@ -31,5 +31,15 @@ bridge: # Bridge properties
         - pieces: # A list of names of pieces that make up this glued component; names are from geometry
           - top
           glueArea: 22.54 # Total area of glue (b)
+      bucklingModes: # Possible plate buckling modes for this cross section
+        twoEdge:
+          - [21.27, 73.73, 57.46, 1.27]
+          - bottom
+        oneEdge:
+          - [0, 73.73, 10, 1.27]
+          - [90, 73.73, 10, 1.27]
+        linearStress:
+          - side1
+          - side2
       start: 0 # Where the cross section starts
       stop: 1280 # Where the cross section ends

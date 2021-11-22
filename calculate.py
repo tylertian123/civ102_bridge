@@ -1,7 +1,8 @@
 import numpy as np
 import math
 import itertools
-from typing import Any, Dict, List, Optional, Tuple
+from collections import namedtuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 from matplotlib import pyplot as plt, patches
 from matplotlib.axes import Axes
 
@@ -16,6 +17,8 @@ except ImportError:
 # where loc1, loc2, ... are the distances of the loads from the left edge
 Forces = List[Tuple[float, float]]
 
+# Rectangles are defined by [x, y, width, height]
+Rect = Union[List[float], Tuple[float, float, float, float]]
 
 def floatgeq(a: float, b: float) -> bool:
     """
@@ -31,17 +34,24 @@ def floatleq(a: float, b: float) -> bool:
     return a < b or math.isclose(a, b, rel_tol=1e-7, abs_tol=1e-7)
 
 
+BucklingModes = namedtuple("BucklingModes", ("two_edge", "one_edge", "linear_stress"))
+
+
 # A class to hold and compute properties of cross sections
 class CrossSection:
     def __init__(self, values: Dict[str, Any]) -> None:
         # Geometry consists of a list of rectangles in the form of [x, y, width, height]
         self.geometry = list(values["geometry"].values())
         self.min_b_height = values["minBHeight"]
+        # For each item listed in the pieces, it could either be a rectangle or the name of another piece
+        rect_list = lambda l: [values["geometry"][rect] if isinstance(rect, str) else rect for rect in l]
         # An array of glued components, with form (geom, b)
         # Where geom is a list of rectangles that make up the component and b is the glue area
-        self.glued_components = [(
-                [values["geometry"][name] for name in c["pieces"]], c["glueArea"])
-            for c in values["gluedComponents"]]
+        self.glued_components = [(rect_list(c["pieces"]), c["glueArea"]) for c in values["gluedComponents"]]
+        # Specifications of the scenarios for all the plate buckling modes
+        self.buckling_modes = BucklingModes(two_edge=rect_list(values["bucklingModes"].get("twoEdge", [])),
+            one_edge=rect_list(values["bucklingModes"].get("oneEdge", [])),
+            linear_stress=rect_list(values["bucklingModes"].get("linearStress", [])))
 
         # Compute properties
         self.ytop = max(y + h for _, y, _, h in self.geometry)
@@ -119,23 +129,126 @@ class CrossSection:
         return tau * self.i * min(b / abs(sum(w * h * (y + h / 2 - self.ybar) for _, y, w, h in geom))
             for geom, b in self.glued_components)
 
-    def visualize(self, ax: Axes) -> None:
+    def calculate_two_edge_mfail(self, e: float, nu: float) -> Tuple[float, float]:
+        """
+        Calculate the bending moment Mfail that causes thin-plate buckling where both edges are restrained and
+        the piece is under constant flexural stress.
+
+        Returns an upper bound and a lower bound. If the bending moment is higher than the upper bound or more
+        negative than the lower bound then the structure will fail. Note that if the upper/lower bound does not
+        exist for this mode then math.inf will be returned.
+        """
+        mfailu = math.inf
+        mfaill = math.inf
+        for _, y, w, h in self.buckling_modes.two_edge:
+            # sigma = (4pi^2*E)/(12(1-nu^2))(t/b)^2 = My/I => M = sigma*I/y
+            # Since the piece is under constant flexural stress it must have a constant y value so it must be horizontal
+            # This means that thickness t is the piece's height and width b is the piece's width
+            sigma = (4 * math.pi ** 2 * e) / (12 * (1 - nu ** 2)) * (h / w) ** 2
+            # Assume piece is either entirely above or entirely below centroid
+            if y + h > self.ybar:
+                # If the piece is entirely above centroid, then it's only under compression for positive bending moment
+                # Use the top edge as y for max stress
+                mfail = self.i * sigma / (y + h - self.ybar)
+                mfailu = min(mfailu, mfail)
+            else:
+                # If the piece is entirely below centroid, then it's only under compression for negative bending moment
+                mfail = self.i * sigma / (self.ybar - y)
+                mfaill = min(mfaill, mfail)
+        return mfailu, -mfaill
+    
+    def calculate_one_edge_mfail(self, e: float, nu: float) -> Tuple[float, float]:
+        """
+        Calculate the bending moment Mfail that causes thin-plate buckling where only one edge is restrained and
+        the piece is under constant flexural stress.
+
+        Returns an upper bound and a lower bound. If the bending moment is higher than the upper bound or more
+        negative than the lower bound then the structure will fail. Note that if the upper/lower bound does not
+        exist for this mode then math.inf will be returned.
+        """
+        mfailu = math.inf
+        mfaill = math.inf
+        for _, y, w, h in self.buckling_modes.one_edge:
+            # sigma = (0.425pi^2*E)/(12(1-nu^2))(t/b)^2 = My/I => M = sigma*I/y
+            # Since the piece is under constant flexural stress it must have a constant y value so it must be horizontal
+            # This means that thickness t is the piece's height and width b is the piece's width
+            sigma = (0.425 * math.pi ** 2 * e) / (12 * (1 - nu ** 2)) * (h / w) ** 2
+            # Assume piece is either entirely above or entirely below centroid
+            if y > self.ybar:
+                # If the piece is entirely above centroid, then it's only under compression for positive bending moment
+                # Use the top edge as y for max stress
+                mfail = self.i * sigma / (y + h - self.ybar)
+                mfailu = min(mfailu, mfail)
+            else:
+                # If the piece is entirely below centroid, then it's only under compression for negative bending moment
+                mfail = self.i * sigma / (self.ybar - y)
+                mfaill = min(mfaill, mfail)
+        return mfailu, -mfaill
+
+    def calculate_linear_stress_mfail(self, e: float, nu: float) -> Tuple[float, float]:
+        """
+        Calculate the bending moment Mfail that causes thin-plate buckling where both edges are restrained and
+        the piece is under linear flexural stress.
+
+        Returns an upper bound and a lower bound. If the bending moment is higher than the upper bound or more
+        negative than the lower bound then the structure will fail. Note that if the upper/lower bound does not
+        exist for this mode then math.inf will be returned.
+        """
+        mfailu = math.inf
+        mfaill = math.inf
+        for _, y, w, h in self.buckling_modes.linear_stress:
+            # sigma = (4pi^2*E)/(12(1-nu^2))(t/b)^2 = My/I => M = sigma*I/y
+            # If the piece is under linear flexural stress, then it must be vertical
+            # Thickness t is the piece's width and width b is the piece's height
+            # Split into two cases: Above centroid and below centroid (split piece between both if piece is on both sides)
+            if y + h > self.ybar:
+                # New height is y + h - ybar, the amount that's above ybar
+                sigma = (6 * math.pi ** 2 * e) / (12 * (1 - nu ** 2)) * (w / (y + h - self.ybar)) ** 2
+                # Above centroid is under compression only for positive bending moment
+                # Maximum stress occurs at top edge
+                mfail = self.i * sigma / (y + h - self.ybar)
+                mfailu = min(mfailu, mfail)
+            if y < self.ybar:
+                # New height is ybar - y
+                sigma = (6 * math.pi ** 2 * e) / (12 * (1 - nu ** 2)) * (w / (self.ybar - y)) ** 2
+                # Below centroid is under compression only for negative bending moment
+                # Max stress occurs at bottom edge
+                mfail = self.i * sigma / (self.ybar - y)
+                mfaill = min(mfaill, mfail)
+        return mfailu, -mfaill
+
+    def visualize(self, ax: Axes, show_glued_components: bool = False, show_buckling_modes: bool = False) -> None:
         """
         Draw the cross section onto a matplotlib plot to visualize it.
         """
         for x, y, w, h in self.geometry:
             ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=1, edgecolor="k", facecolor="none"))
-        for (geom, _), color in zip(self.glued_components, itertools.cycle("bgcmy")):
-            for x, y, w, h in geom:
-                ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=1, edgecolor=color, facecolor="none"))
+        if show_glued_components:
+            for (geom, _), color in zip(self.glued_components, itertools.cycle("bgcmy")):
+                for x, y, w, h in geom:
+                    ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=1, edgecolor=color, facecolor="none"))
+        if show_buckling_modes:
+            label = "Two-edge Buckling"
+            for x, y, w, h in self.buckling_modes.two_edge:
+                ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=1, facecolor="tab:orange", edgecolor="none", label=label))
+                label = None
+            label = "One-edge Buckling"
+            for x, y, w, h in self.buckling_modes.one_edge:
+                ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=1, facecolor="tab:olive", edgecolor="none", label=label))
+                label = None
+            label = "Linear-stress buckling"
+            for x, y, w, h in self.buckling_modes.linear_stress:
+                ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=1, facecolor="tab:brown", edgecolor="none", label=label))
+                label = None
         xmin = min(x for x, _, _, _ in self.geometry)
         xmax = max(x + w for x, _, w, _ in self.geometry)
         ymin = min(y for _, y, _, _ in self.geometry)
         ymax = max(y + h for _, y, _, h in self.geometry)
         ax.set_xlim(xmin - 10, xmax + 10)
         ax.set_ylim(ymin - 10, ymax + 10)
-        ax.axhline(self.ybar, c="r")
+        ax.axhline(self.ybar, c="r", label="Centroid")
         ax.set_aspect("equal")
+        ax.legend(loc="best")
         print(f"Max y: {self.ytop}\nMin y: {self.ybot}\nArea: {self.area}\nCentroid: {self.ybar}\nI: {self.i}")
 
 
@@ -304,6 +417,58 @@ class Bridge:
         for start, stop, cs in self.cross_sections:
             vfail.extend([cs.calculate_glue_vfail(self.glue_tau)] * (stop - start + 1))
         return np.array(vfail)
+    
+
+    def calculate_two_edge_mfail(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Calculate the bending moment Mfail that causes thin-plate buckling where both edges are restrained and
+        the piece is under constant flexural stress.
+
+        Returns two numpy arrays, consisting of an upper and lower bound (lower bound will be negative).
+        If the bending moment is higher than the upper bound or more negative than the lower bound then the
+        structure will fail.
+        """
+        upper = []
+        lower = []
+        for start, stop, cs in self.cross_sections:
+            u, l = cs.calculate_two_edge_mfail(self.e, self.nu)
+            upper.extend([u] * (stop - start + 1))
+            lower.extend([l] * (stop - start + 1))
+        return np.array(upper), np.array(lower)
+    
+    def calculate_one_edge_mfail(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Calculate the bending moment Mfail that causes thin-plate buckling where only one edge is restrained and
+        the piece is under constant flexural stress.
+
+        Returns two numpy arrays, consisting of an upper and lower bound (lower bound will be negative).
+        If the bending moment is higher than the upper bound or more negative than the lower bound then the
+        structure will fail.
+        """
+        upper = []
+        lower = []
+        for start, stop, cs in self.cross_sections:
+            u, l = cs.calculate_one_edge_mfail(self.e, self.nu)
+            upper.extend([u] * (stop - start + 1))
+            lower.extend([l] * (stop - start + 1))
+        return np.array(upper), np.array(lower)
+    
+    def calculate_linear_stress_mfail(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Calculate the bending moment Mfail that causes thin-plate buckling where both edges are restrained and
+        the piece is under linearly varying flexural stress.
+
+        Returns two numpy arrays, consisting of an upper and lower bound (lower bound will be negative).
+        If the bending moment is higher than the upper bound or more negative than the lower bound then the
+        structure will fail.
+        """
+        upper = []
+        lower = []
+        for start, stop, cs in self.cross_sections:
+            u, l = cs.calculate_linear_stress_mfail(self.e, self.nu)
+            upper.extend([u] * (stop - start + 1))
+            lower.extend([l] * (stop - start + 1))
+        return np.array(upper), np.array(lower)
 
 
 def main():
@@ -316,10 +481,16 @@ def main():
     bmd = bridge.make_bmd(sfd)
     phi = bridge.make_curvature_diagram(bmd)
 
-    # Tensile Mfail Upper, Tensile Mfail Lower
+    # Tensile Mfail Upper/Lower
     tmfailu, tmfaill = bridge.calculate_tensile_mfail()
-    # Compressive Mfail Upper, Compressive Mfail Lower
+    # Compressive Mfail Upper/Lower
     cmfailu, cmfaill = bridge.calculate_compressive_mfail()
+    # Two-edge Buckling Mfail Upper/Lower
+    tbmfailu, tbmfaill = bridge.calculate_two_edge_mfail()
+    # One-edge Buckling Mfail Upper/Lower
+    obmfailu, obmfaill = bridge.calculate_one_edge_mfail()
+    # Linear-stress Buckling Mfail Upper/Lower
+    lbmfailu, lbmfaill = bridge.calculate_linear_stress_mfail()
     # Matboard Vfail
     mvfail = bridge.calculate_matboard_vfail()
     # Glue Vfail
@@ -343,9 +514,15 @@ def main():
     ax3.axhline(0, c="k")
     ax3.plot(x, bmd)
     ax3.plot(x, tmfailu, c="r", label="Tensile Mfail")
-    ax3.plot(x, cmfailu, c="tab:orange", label="Compressive Mfail")
     ax3.plot(x, tmfaill, c="r")
+    ax3.plot(x, cmfailu, c="tab:orange", label="Compressive Mfail")
     ax3.plot(x, cmfaill, c="tab:orange")
+    ax3.plot(x, tbmfailu, c="tab:purple", label="Two-edge Buckling Mfail")
+    ax3.plot(x, tbmfaill, c="tab:purple")
+    ax3.plot(x, obmfailu, c="tab:brown", label="One-edge Buckling Mfail")
+    ax3.plot(x, obmfaill, c="tab:brown")
+    ax3.plot(x, lbmfailu, c="tab:gray", label="Linear-stress Buckling Mfail")
+    ax3.plot(x, lbmfaill, c="tab:gray")
     ax3.set_title("Bending Moment")
     ax3.legend(loc="best")
 
@@ -354,8 +531,8 @@ def main():
 
     plt.show()
 
-    #bridge.cross_sections[0][2].visualize(plt.gca())
-    #plt.show()
+    bridge.cross_sections[0][2].visualize(plt.gca(), show_buckling_modes=True)
+    plt.show()
 
 
 if __name__ == "__main__":
