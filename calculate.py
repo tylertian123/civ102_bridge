@@ -48,8 +48,8 @@ class CrossSection:
         self.ybot = min(y for _, y, _, h in self.geometry)
         self.area = sum(w * h for _, _, w, h in self.geometry)
         self.ybar = sum(w * h * (y + h / 2) for _, y, w, h in self.geometry) / self.area
-        # Parallel axis theorem, with I of each piece being bh^3/12
-        self.i = sum(w * h ** 3 / 12 + (y + h / 2 - self.ybar) ** 2 for _, y, w, h in self.geometry)
+        # Parallel axis theorem: sum wh^3/12 + Ad^2
+        self.i = sum(w * h ** 3 / 12 + w * h * (y + h / 2 - self.ybar) ** 2 for _, y, w, h in self.geometry)
     
     def calculate_b(self, y0: float, above: Optional[bool] = None) -> None:
         """
