@@ -318,18 +318,18 @@ class Bridge:
         shear = [0] * (self.length + 1) # One point per mm
         # Accumulate point loads
         s = x = i = 0
-        while x < len(shear) and i < len(loads):
+        while x < len(shear):
             # For every point load reached, add its value
-            if x <= loads[i][0] and x + 1 > loads[i][0]:
+            while i < len(loads) and x <= loads[i][0] and x + 1 > loads[i][0]:
                 s += loads[i][1]
-            shear[x] = s
-            # Increment x value and next point load
-            x += 1
-            if x > loads[i][0]:
                 i += 1
-        if abs(shear[-1]) > 1e-5:
-            raise ValueError("Final shear not equal to zero!")
-        return np.array(shear)
+            shear[x] = s
+            # Increment x value
+            x += 1
+        shear = np.array(shear)
+        if abs(shear[-1]) > 1e-7:
+            print(f"Warning: Nonzero final shear! Final value {shear[-1]} is {abs(shear[-1]) / max(abs(shear.max()), abs(shear.min()))} times the maximum absolute shear.")
+        return shear
 
     def make_bmd(self, sfd: np.ndarray) -> np.ndarray:
         """
@@ -340,7 +340,10 @@ class Bridge:
         for x in range(len(sfd)):
             moment += sfd[x]
             bmd[x] = moment
-        return np.array(bmd)
+        bmd = np.array(bmd)
+        if abs(bmd[-1]) > 1e-7:
+            print(f"Warning: Nonzero final bending moment! Final value {bmd[-1]} is {abs(bmd[-1]) / max(abs(bmd.max()), abs(bmd.min()))} times the maximum absolute shear.")
+        return bmd
 
     def make_curvature_diagram(self, bmd: np.ndarray) -> np.ndarray:
         """
@@ -357,6 +360,36 @@ class Bridge:
             # Curvature phi = M / EI
             phi.append(bmd[x] / (self.e * cs[2].i))
         return np.array(phi)
+    
+    def max_sfd_train(self, step: Optional[int] = 4) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Compute the maximum shear force at every point from all possible train locations.
+        """
+        upper = np.zeros((self.length + 1,))
+        lower = np.zeros((self.length + 1,))
+        # Sample locations from the front of the train being at the left end of the bridge,
+        # to when the front of the train is at the length of the bridge plus the length of the train
+        lend = self.train_wheel_edge_distance
+        rend = self.length + 4 * self.train_wheel_edge_distance + 3 * self.train_wheel_distance + 2 * self.train_car_distance
+        locations = np.arange(lend, rend + 1, step)
+        for location in locations:
+            sfd = self.make_sfd(self.reaction_forces(self.load_train(location)))
+            upper = np.maximum(upper, sfd)
+            lower = np.minimum(lower, sfd)
+        return upper, lower
+    
+    def max_bmd_train(self, step: Optional[int] = 4) -> Tuple[np.ndarray, np.ndarray]:
+        upper = np.zeros((self.length + 1,))
+        lower = np.zeros((self.length + 1,))
+        # Same logic as above
+        lend = self.train_wheel_edge_distance
+        rend = self.length + 4 * self.train_wheel_edge_distance + 3 * self.train_wheel_distance + 2 * self.train_car_distance
+        locations = np.arange(lend, rend + 1, step)
+        for location in locations:
+            bmd = self.make_bmd(self.make_sfd(self.reaction_forces(self.load_train(location))))
+            upper = np.maximum(upper, bmd)
+            lower = np.minimum(lower, bmd)
+        return upper, lower
 
     def calculate_tensile_mfail(self) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -473,6 +506,13 @@ class Bridge:
 
 def main():
     bridge = Bridge.from_yaml("design0.yaml")
+    # x = np.arange(0, bridge.length + 1, 1)
+    # upper, lower = bridge.max_bmd_train()
+    # plt.plot(x, upper)
+    # plt.plot(x, lower)
+    # plt.show()
+    # return
+
     loads = bridge.load_points(200)
     #loads = bridge.load_train(960)
     forces = bridge.reaction_forces(loads)
