@@ -349,7 +349,6 @@ class CrossSection:
         ax.axhline(self.ybar, c="r", label="Centroid")
         ax.set_aspect("equal")
         ax.legend(loc="best")
-        print(f"Max y: {self.ytop}\nMin y: {self.ybot}\nArea: {self.area}\nCentroid: {self.ybar}\nI: {self.i}")
 
 
 # A class to hold all the bridge and loading geometry constants
@@ -374,8 +373,8 @@ class Bridge:
         self.cross_sections = [(d["start"], d["stop"], CrossSection(d)) for d in values["bridge"]["crossSections"]]
     
     @classmethod
-    def from_yaml(cls, file: str) -> "Bridge":
-        return Bridge(yaml.load(open(file, "r", encoding="utf-8"), Loader))
+    def from_yaml(cls, file) -> "Bridge":
+        return Bridge(yaml.load(file, Loader))
 
     def load_train(self, dist: float) -> Forces:
         """
@@ -613,7 +612,7 @@ class Bridge:
 
 
 def main():
-    bridge = Bridge.from_yaml("design0.yaml")
+    bridge = Bridge.from_yaml(open("design0.yaml", "r"))
     # x = np.arange(0, bridge.length + 1, 1)
     # upper, lower = bridge.max_bmd_train()
     # plt.plot(x, upper)
