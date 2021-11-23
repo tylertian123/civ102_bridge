@@ -34,7 +34,7 @@ def floatleq(a: float, b: float) -> bool:
     return a < b or math.isclose(a, b, rel_tol=1e-7, abs_tol=1e-7)
 
 
-BucklingModes = namedtuple("BucklingModes", ("two_edge", "one_edge", "linear_stress"))
+BucklingModes = namedtuple("BucklingModes", ("two_edge", "one_edge", "linear_stress", "shear"))
 
 
 # A class to hold and compute properties of cross sections
@@ -51,7 +51,9 @@ class CrossSection:
         # Specifications of the scenarios for all the plate buckling modes
         self.buckling_modes = BucklingModes(two_edge=rect_list(values["bucklingModes"].get("twoEdge", [])),
             one_edge=rect_list(values["bucklingModes"].get("oneEdge", [])),
-            linear_stress=rect_list(values["bucklingModes"].get("linearStress", [])))
+            linear_stress=rect_list(values["bucklingModes"].get("linearStress", [])),
+            shear=rect_list(values["bucklingModes"].get("shear", [])))
+        self.diaphragm_distance = values.get("diaphragmDistance", math.inf)
 
         # Compute properties
         self.ytop = max(y + h for _, y, _, h in self.geometry)
@@ -124,7 +126,7 @@ class CrossSection:
                     new_rect[3] -= start
                 else:
                     raise ValueError(f"Unknown slice type: {slice_type}")
-            tail = rect[close_idx + 1:]
+            tail = rect[close_idx + 2:]
             if tail:
                 if not tail.isalnum():
                     raise ValueError(f"Invalid name: {tail}")
@@ -290,6 +292,26 @@ class CrossSection:
                 mfail = self.i * sigma / (self.ybar - y)
                 mfaill = min(mfaill, mfail)
         return mfailu, -mfaill
+    
+    def calculate_buckling_vfail(self, e: float, nu: float) -> float:
+        """
+        Calculate the shear force Vfail that would cause shear buckling.
+        """
+        vfail = math.inf
+        for _, y, w, h in self.buckling_modes.shear:
+            # tau = (5pi^2E)/(12(1 - nu^2))((t/h)^2 + (t/a)^2)
+            # t used in equation is the shorter of the two, and h is the longer of the two
+            t = min(w, h)
+            h2 = max(w, h)
+            tau = (5 * math.pi ** 2 * e) / (12 * (1 - nu ** 2)) * ((t / h2) ** 2 + (t / self.diaphragm_distance) ** 2)
+
+            # tau = VQ/Ib => V = tau*Ib/Q, and the width b is the same as the t above
+            # To get max shear stress Q needs to be maximized so the depth should be chosen to be as close to ybar as possible
+            # First take the max of ybar and y to get either ybar if it's above the bottom or y if ybar is below the bottom
+            # and then take the min of the last result and the top y value to clamp it again
+            v = tau * self.i * t / self.calculate_q(min(max(self.ybar, y), y + h))
+            vfail = min(vfail, v)
+        return vfail
 
     def visualize(self, ax: Axes, show_glued_components: bool = False, show_buckling_modes: bool = False) -> None:
         """
@@ -313,6 +335,10 @@ class CrossSection:
             label = "Linear-stress buckling"
             for x, y, w, h in self.buckling_modes.linear_stress:
                 ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=1, facecolor="tab:brown", edgecolor="none", label=label))
+                label = None
+            label = "Shear buckling"
+            for x, y, w, h in self.buckling_modes.shear:
+                ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=1, facecolor="tab:pink", edgecolor="none", label=label))
                 label = None
         xmin = min(x for x, _, _, _ in self.geometry)
         xmax = max(x + w for x, _, w, _ in self.geometry)
@@ -525,7 +551,6 @@ class Bridge:
             vfail.extend([cs.calculate_glue_vfail(self.glue_tau)] * (stop - start + 1))
         return np.array(vfail)
     
-
     def calculate_two_edge_mfail(self) -> Tuple[np.ndarray, np.ndarray]:
         """
         Calculate the bending moment Mfail that causes thin-plate buckling where both edges are restrained and
@@ -576,6 +601,15 @@ class Bridge:
             upper.extend([u] * (stop - start + 1))
             lower.extend([l] * (stop - start + 1))
         return np.array(upper), np.array(lower)
+    
+    def calculate_buckling_vfail(self) -> np.ndarray:
+        """
+        Calculate the shear force Vfail that causes shear buckling.
+        """
+        vfail = []
+        for start, stop, cs in self.cross_sections:
+            vfail.extend([cs.calculate_buckling_vfail(self.e, self.nu)] * (stop - start + 1))
+        return np.array(vfail)
 
 
 def main():
@@ -609,6 +643,8 @@ def main():
     mvfail = bridge.calculate_matboard_vfail()
     # Glue Vfail
     gvfail = bridge.calculate_glue_vfail()
+    # Buckling vfail
+    bvfail = bridge.calculate_buckling_vfail()
 
     x = np.arange(0, bridge.length + 1, 1)
     fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2)
@@ -619,9 +655,11 @@ def main():
     ax2.axhline(0, c="k")
     ax2.plot(x, sfd, label="Shear Force")
     ax2.plot(x, gvfail, c="r", label="Glue Vfail")
-    ax2.plot(x, mvfail, c="tab:orange", label="Matboard Vfail")
     ax2.plot(x, -gvfail, c="r")
+    ax2.plot(x, mvfail, c="tab:orange", label="Matboard Vfail")
     ax2.plot(x, -mvfail, c="tab:orange")
+    ax2.plot(x, bvfail, c="tab:purple", label="Buckling Vfail")
+    ax2.plot(x, -bvfail, c="tab:purple")
     ax2.set_title("Shear Force")
     ax2.legend(loc="best")
 

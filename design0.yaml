@@ -32,14 +32,18 @@ bridge: # Bridge properties
           - top
           glueArea: 22.54 # Total area of glue (b)
       bucklingModes: # Possible plate buckling modes for this cross section
-        twoEdge:
-          - top[w=11.27:-11.27]
+        twoEdge: # Piece that could fail by plate buckling with both edges restrained
+          - top[w=11.27:-11.27] # Note: Slice an existing piece
           - bottom
-        oneEdge:
+        oneEdge: # Plate buckling with only one edge restrained
           - top[w=:10]
           - top[w=-10:]
-        linearStress:
-          - side1[h=1.27:-1.27]
-          - side2[h=1.27:-1.27]
+        linearStress: # Plate buckling with both edges restrained and linearly varying stress
+          - side1[h=1.27:-1.27]:innerSide1 # Slicing an existing piece and assigning it to a new name
+          - side2[h=1.27:-1.27]:innerSide2
+        shear: # Shear buckling
+          - innerSide1
+          - innerSide2
+      diaphragmDistance: 520 # Longest distance between diaphragms, used for shear buckling
       start: 0 # Where the cross section starts
       stop: 1280 # Where the cross section ends
