@@ -44,7 +44,7 @@ class CrossSection:
         self.geometry = list(values["geometry"].values())
         self.min_b_height = values["minBHeight"]
         # For each item listed in the pieces, it could either be a rectangle or the name of another piece
-        rect_list = lambda l: [values["geometry"][rect] if isinstance(rect, str) else rect for rect in l]
+        rect_list = lambda l: [self.parse_rect(values["geometry"], rect) for rect in l]
         # An array of glued components, with form (geom, b)
         # Where geom is a list of rectangles that make up the component and b is the glue area
         self.glued_components = [(rect_list(c["pieces"]), c["glueArea"]) for c in values["gluedComponents"]]
@@ -60,6 +60,80 @@ class CrossSection:
         self.ybar = sum(w * h * (y + h / 2) for _, y, w, h in self.geometry) / self.area
         # Parallel axis theorem: sum wh^3/12 + Ad^2
         self.i = sum(w * h ** 3 / 12 + w * h * (y + h / 2 - self.ybar) ** 2 for _, y, w, h in self.geometry)
+    
+    def parse_rect(self, known_rects: Dict[str, Rect], rect: Union[str, Rect]) -> Rect:
+        """
+        Parse a rect from the YAML into a proper Rect (list or tuple of [x, y, width, height]).
+
+        If rect is already a tuple or a list, it will be returned directly.
+        If it's a string, then it will be interpreted with the following syntax:
+
+        name[w=wstart:wstop, h=hstart:hstop]:newname
+
+        where name is the name of an existing rect in known_rects, wstart and wstop are the start and end of the
+        width-wise (horizontal) slice (relative to the x value of the rect), hstart and hstop are the start and end of
+        of the height-wise (vertical) slice (relative to the y value of the rect), and newname is an optional new name
+        to give to this rect, and if given, the new rect produced by the slice will be stored in known_rects.
+
+        Both w and h type slices can be used together, or only one or none can be used. If wstart/wstop/hstart/hstop
+        are negative, they are to be interpreted as starting from the far edge (like how Python list slicing works).
+        wstart and hstart can be omitted and default to 0. wstop and hstop can be omitted and default to the width
+        and height of the rect to be sliced respectively.
+        """
+        if isinstance(rect, list) or isinstance(rect, tuple):
+            return rect
+        if rect.isalnum():
+            return known_rects[rect]
+
+        try:
+            open_idx = rect.index("[")
+            close_idx = rect.index("]")
+            rect_slice = rect[open_idx + 1:close_idx]
+            new_rect = known_rects[rect[:open_idx]].copy()
+            for s in rect_slice.split(","):
+                s = s.strip()
+                slice_type, slice_range = s.split("=")
+                start, stop = slice_range.split(":")
+                start = float(start) if start else 0
+                stop = float(stop) if stop else None
+                # Width slice
+                if slice_type == "w":
+                    # Default for stop is the end of the rect
+                    if stop is None:
+                        stop = new_rect[2]
+                    if stop < 0:
+                        stop += new_rect[2]
+                    if start < 0:
+                        start += new_rect[2]
+                    # Shrink from the right first
+                    new_rect[2] = stop
+                    # Shrink from the left
+                    new_rect[0] += start
+                    new_rect[2] -= start
+                elif slice_type == "h":
+                    if stop is None:
+                        stop = new_rect[3]
+                    if stop < 0:
+                        stop += new_rect[3]
+                    if start < 0:
+                        start += new_rect[3]
+                    # Shrink from the top
+                    new_rect[3] = stop
+                    # Shrink from the bottom
+                    new_rect[1] += start
+                    new_rect[3] -= start
+                else:
+                    raise ValueError(f"Unknown slice type: {slice_type}")
+            tail = rect[close_idx + 1:]
+            if tail:
+                if not tail.isalnum():
+                    raise ValueError(f"Invalid name: {tail}")
+                known_rects[tail] = new_rect
+            return new_rect
+        except (ValueError, IndexError) as e:
+            raise ValueError(f"Invalid syntax: {rect}") from e
+        except KeyError as e:
+            raise ValueError(f"Unknown name: {rect[:open_idx]}") from e
     
     def calculate_b(self, y0: float, above: Optional[bool] = None) -> None:
         """

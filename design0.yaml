@@ -33,13 +33,13 @@ bridge: # Bridge properties
           glueArea: 22.54 # Total area of glue (b)
       bucklingModes: # Possible plate buckling modes for this cross section
         twoEdge:
-          - [11.27, 73.73, 77.46, 1.27]
+          - top[w=11.27:-11.27]
           - bottom
         oneEdge:
-          - [0, 73.73, 10, 1.27]
-          - [90, 73.73, 10, 1.27]
+          - top[w=:10]
+          - top[w=-10:]
         linearStress:
-          - [10, 1.27, 1.27, 71.19]
-          - [88.73, 1.27, 1.27, 71.19]
+          - side1[h=1.27:-1.27]
+          - side2[h=1.27:-1.27]
       start: 0 # Where the cross section starts
       stop: 1280 # Where the cross section ends
