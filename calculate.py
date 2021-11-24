@@ -370,7 +370,19 @@ class Bridge:
         self.e = values["bridge"]["material"]["e"] # Young's modulus
         self.nu = values["bridge"]["material"]["nu"] # Poisson's ratio
 
-        self.cross_sections = [(d["start"], d["stop"], CrossSection(d)) for d in values["bridge"]["crossSections"]]
+        self.cross_sections = [] # type: List[Tuple[int, int, CrossSection]]
+        named_cross_sections = {}
+        for d in values["bridge"]["crossSections"]:
+            if "geometry" in d:
+                cs = CrossSection(d)
+                if "name" in d:
+                    named_cross_sections[d["name"]] = cs
+            else:
+                if "name" in d:
+                    cs = named_cross_sections[d["name"]]
+                else:
+                    raise ValueError("Cross section must have name or geometry")
+            self.cross_sections.append((d["start"], d["stop"], cs))
     
     @classmethod
     def from_yaml(cls, file) -> "Bridge":

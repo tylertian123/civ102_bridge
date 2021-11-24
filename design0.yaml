@@ -19,7 +19,8 @@ bridge: # Bridge properties
     - 15
     - 1075
   crossSections:
-    - geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
+    - name: main
+      geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
         top: [0, 73.73, 100, 1.27]
         gluetab1: [11.27, 72.46, 10, 1.27]
         gluetab2: [78.73, 72.46, 10, 1.27]
