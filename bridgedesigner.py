@@ -81,15 +81,8 @@ def load(ctx, load_type: str, load_amount: str, mfail: List[str], vfail: List[st
         ax1.plot(x, sfd, label="Shear")
         ax2.plot(x, bmd, label="Bending Moment")
     
-    def plot_fail(keys: List[str], match: Iterable[str], label: str, fn):
-        if "all" in keys or any(m in keys for m in match):
-            fail_vals = fn()
-            if len(fail_vals) == 2:
-                upper, lower = fail_vals
-            else:
-                upper = fail_vals
-                lower = -fail_vals
-            
+    def plot_fail(keys: List[str], match: Iterable[str], label: str, upper: np.ndarray, lower: np.ndarray):
+        if "all" in keys or any(m in keys for m in match):            
             print("Failure values for ", label, ":", sep="")
             for i, (start, stop, _) in enumerate(bridge.cross_sections):
                 print(f"\tCross section #{i + 1} (start: {start}, stop: {stop}):\t({lower[(start - stop) // 2]}, {upper[(start - stop) // 2]})")
@@ -98,15 +91,34 @@ def load(ctx, load_type: str, load_amount: str, mfail: List[str], vfail: List[st
             p = ax.plot(x, upper, label=label)
             ax.plot(x, lower, c=p[0].get_c())
     
-    plot_fail(mfail, ("t", "tensile"), "Tensile Failure", bridge.calculate_tensile_mfail)
-    plot_fail(mfail, ("c", "compressive"), "Compressive Failure", bridge.calculate_compressive_mfail)
-    plot_fail(mfail, ("buckling", "oe", "oneedge"), "One-edge Buckling Failure", bridge.calculate_one_edge_mfail)
-    plot_fail(mfail, ("buckling", "te", "twoedge"), "Two-edge Buckling Failure", bridge.calculate_two_edge_mfail)
-    plot_fail(mfail, ("buckling", "ls", "linearstress"), "Linear-stress Buckling Failure", bridge.calculate_linear_stress_mfail)
+    tmu, tml = bridge.calculate_tensile_mfail()
+    cmu, cml = bridge.calculate_compressive_mfail()
+    oemu, oeml = bridge.calculate_one_edge_mfail()
+    temu, teml = bridge.calculate_two_edge_mfail()
+    lsmu, lsml = bridge.calculate_linear_stress_mfail()
+    plot_fail(mfail, ("t", "tensile"), "Tensile Failure", tmu, tml)
+    plot_fail(mfail, ("c", "compressive"), "Compressive Failure", cmu, cml)
+    plot_fail(mfail, ("buckling", "oe", "oneedge"), "One-edge Buckling Failure", oemu, oeml)
+    plot_fail(mfail, ("buckling", "te", "twoedge"), "Two-edge Buckling Failure", temu, teml)
+    plot_fail(mfail, ("buckling", "ls", "linearstress"), "Linear-stress Buckling Failure", lsmu, lsml)
 
-    plot_fail(vfail, ("m", "matboard"), "Matboard Failure", bridge.calculate_matboard_vfail)
-    plot_fail(vfail, ("g", "glue"), "Glue Failure", bridge.calculate_glue_vfail)
-    plot_fail(vfail, ("b", "buckling"), "Shear Buckling Failure", bridge.calculate_buckling_vfail)
+    mv = bridge.calculate_matboard_vfail()
+    gv = bridge.calculate_glue_vfail()
+    bv = bridge.calculate_buckling_vfail()
+    plot_fail(vfail, ("m", "matboard"), "Matboard Failure", mv, -mv)
+    plot_fail(vfail, ("g", "glue"), "Glue Failure", gv, -gv)
+    plot_fail(vfail, ("b", "buckling"), "Shear Buckling Failure", bv, -bv)
+
+    print("Factors of Safety:")
+    fail_shear = [mv, gv, bv]
+    fail_moment_upper = [tmu, cmu, oemu, temu, lsmu]
+    fail_moment_lower = [tml, cml, oeml, teml, lsml]
+    if load_amount != "max":
+        print("\tShear:", bridge.calculate_shear_fos(sfd, fail_shear), sep="\t")
+        print("\tBending Moment:", bridge.calculate_moment_fos(bmd, fail_moment_upper, fail_moment_lower), sep="\t")
+    else:
+        print("\tShear:", min(bridge.calculate_shear_fos(sfd[0], fail_shear), bridge.calculate_shear_fos(sfd[1], fail_shear)), sep="\t")
+        print("\tBending Moment:", min(bridge.calculate_moment_fos(bmd[0], fail_moment_upper, fail_moment_lower), bridge.calculate_moment_fos(bmd[1], fail_moment_upper, fail_moment_lower)), sep="\t")
 
     ax1.legend(loc="upper right")
     ax2.legend(loc="upper right")

@@ -609,3 +609,23 @@ class Bridge:
         for start, stop, cs in self.cross_sections:
             vfail.extend([cs.calculate_buckling_vfail(self.e, self.nu)] * (stop - start + 1))
         return np.array(vfail)
+    
+    def calculate_shear_fos(self, sfd: np.ndarray, fail_shear: List[np.ndarray]) -> float:
+        """
+        Compute the Factor of Safety between the internal shear force in sfd and the failure shear forces
+        in fail_shear.
+        """
+        # Find the minimum shear failure force by taking the minimum of all the failure shear forces
+        min_fail_shear = [min(v) for v in zip(*fail_shear)]
+        return min((cap / abs(dem) for cap, dem in zip(min_fail_shear, sfd) if dem != 0), default=math.inf)
+    
+    def calculate_moment_fos(self, bmd: np.ndarray, fail_moment_upper: List[np.ndarray], fail_moment_lower: List[np.ndarray]) -> float:
+        """
+        Compute the Factor of Safety between the internal bending moment in bmd and the failure bending moments
+        in fail_moment_upper and fail_moment_lower.
+        """
+        # Find the max and min failure bending moment
+        upper = [min(m) for m in zip(*fail_moment_upper)]
+        lower = [max(m) for m in zip(*fail_moment_lower)]
+        return min(min((cap / dem for cap, dem in zip(upper, bmd) if dem > 0), default=math.inf),
+            min((cap / dem for cap, dem in zip(lower, bmd) if dem < 0), default=math.inf))
