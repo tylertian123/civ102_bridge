@@ -629,3 +629,25 @@ class Bridge:
         lower = [max(m) for m in zip(*fail_moment_lower)]
         return min(min((cap / dem for cap, dem in zip(upper, bmd) if dem > 0), default=math.inf),
             min((cap / dem for cap, dem in zip(lower, bmd) if dem < 0), default=math.inf))
+    
+    def calculate_tangential_deviation(self, phi: np.ndarray, a: int, b: int) -> float:
+        """
+        Calculate the tangential deviation of b from a tangent drawn at a, delta_BA.
+        """
+        area = sum(phi[x] for x in range(a, b + 1))
+        xbar = sum(x * phi[x] for x in range(a, b + 1)) / area
+        # Use second moment area theorem
+        return area * (b - xbar)
+
+    def calculate_deflection(self, phi: np.ndarray, x: int) -> float:
+        """
+        Calculate the deflection at a location x from the left end of the bridge.
+
+        x should be in-between the two supports. Otherwise, the behaviour is undefined.
+        """
+        delta_ba = self.calculate_tangential_deviation(phi, self.supports[0], self.supports[1])
+        # By similar triangles, delta_BA / AB = Delta_XA' / AX
+        # Delta_XA is composed of the tangential deviation delta_XA and the true deflection
+        delta_xa = self.calculate_tangential_deviation(phi, self.supports[0], x)
+        return (delta_ba / (self.supports[1] - self.supports[0])) * (x - self.supports[0]) - delta_xa
+

@@ -128,6 +128,8 @@ def load(ctx, load_type: str, load_amount: str, mfail: List[str], vfail: List[st
 
     if load_type == "point":
         print("Failure P:", float(load_amount) * fos_moment)
+    if load_amount != "max":
+        print("Midspan deflection:", bridge.calculate_deflection(bridge.make_curvature_diagram(bmd), bridge.length // 2))
 
     ax1.legend(loc="upper right")
     ax2.legend(loc="upper right")
