@@ -27,12 +27,12 @@ bridge: # Bridge properties
         side1: [10, 0, 1.27, 73.73]
         side2: [88.73, 0, 1.27, 73.73]
         bottom: [11.27, 0, 77.46, 1.27]
-      minBHeight: null # Height of the depth that has the least width b; null if centroidal axis
+      minBHeight: null # Height/depth that has the least width b; null if centroidal axis
       gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
         - pieces: # A list of names of pieces that make up this glued component; names are from geometry
           - top
           glueArea: 22.54 # Total area of glue (b)
-      bucklingModes: # Possible plate buckling modes for this cross section
+      localBuckling: # Possible plate buckling modes for this cross section
         twoEdge: # Piece that could fail by plate buckling with both edges restrained
           - top[w=11.27:-11.27] # Note: Slice an existing piece
           - bottom
@@ -43,8 +43,8 @@ bridge: # Bridge properties
           - side1[h=1.27:-1.27]:innerSide1 # Slicing an existing piece and assigning it to a new name
           - side2[h=1.27:-1.27]:innerSide2
         shear: # Shear buckling
-          - innerSide1
-          - innerSide2
+          - piece: innerSide1 # The plate that is susceptible to shear buckling
+            minBHeight: null # (Global) height/depth with the least width b when restricted to this piece
       diaphragmDistance: 520 # Longest distance between diaphragms, used for shear buckling
       start: 0 # Where the cross section starts
       stop: 1280 # Where the cross section ends

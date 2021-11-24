@@ -3,7 +3,7 @@ import math
 import itertools
 from collections import namedtuple
 from typing import Any, Dict, List, Optional, Tuple, Union
-from matplotlib import pyplot as plt, patches
+from matplotlib import patches
 from matplotlib.axes import Axes
 
 import yaml
@@ -34,8 +34,7 @@ def floatleq(a: float, b: float) -> bool:
     return a < b or math.isclose(a, b, rel_tol=1e-7, abs_tol=1e-7)
 
 
-BucklingModes = namedtuple("BucklingModes", ("two_edge", "one_edge", "linear_stress", "shear"))
-
+LocalBuckling = namedtuple("LocalBuckling", ("two_edge", "one_edge", "linear_stress", "shear"))
 
 # A class to hold and compute properties of cross sections
 class CrossSection:
@@ -49,10 +48,10 @@ class CrossSection:
         # Where geom is a list of rectangles that make up the component and b is the glue area
         self.glued_components = [(rect_list(c["pieces"]), c["glueArea"]) for c in values["gluedComponents"]]
         # Specifications of the scenarios for all the plate buckling modes
-        self.buckling_modes = BucklingModes(two_edge=rect_list(values["bucklingModes"].get("twoEdge", [])),
-            one_edge=rect_list(values["bucklingModes"].get("oneEdge", [])),
-            linear_stress=rect_list(values["bucklingModes"].get("linearStress", [])),
-            shear=rect_list(values["bucklingModes"].get("shear", [])))
+        self.local_buckling = LocalBuckling(two_edge=rect_list(values["localBuckling"].get("twoEdge", [])),
+            one_edge=rect_list(values["localBuckling"].get("oneEdge", [])),
+            linear_stress=rect_list(values["localBuckling"].get("linearStress", [])),
+            shear=[(self.parse_rect(values["geometry"], d["piece"]), d["minBHeight"]) for d in values["localBuckling"].get("shear", [])])
         self.diaphragm_distance = values.get("diaphragmDistance", math.inf)
 
         # Compute properties
@@ -137,7 +136,7 @@ class CrossSection:
         except KeyError as e:
             raise ValueError(f"Unknown name: {rect[:open_idx]}") from e
     
-    def calculate_b(self, y0: float, above: Optional[bool] = None) -> None:
+    def calculate_b(self, y0: float, above: Optional[bool] = None) -> float:
         """
         Calculate the total cross-sectional width b at depth y0.
 
@@ -155,7 +154,7 @@ class CrossSection:
                 # And then consider whether the rest of the piece is above or below y0
                 and ((above and y + h > y0) or (not above and y < y0)))
 
-    def calculate_q(self, y0: float) -> None:
+    def calculate_q(self, y0: float) -> float:
         """
         Calculate the first moment of area about the centroid, Q, for a given depth y0 (relative to the bottom).
         """
@@ -216,7 +215,7 @@ class CrossSection:
         """
         mfailu = math.inf
         mfaill = math.inf
-        for _, y, w, h in self.buckling_modes.two_edge:
+        for _, y, w, h in self.local_buckling.two_edge:
             # sigma = (4pi^2*E)/(12(1-nu^2))(t/b)^2 = My/I => M = sigma*I/y
             # Since the piece is under constant flexural stress it must have a constant y value so it must be horizontal
             # This means that thickness t is the piece's height and width b is the piece's width
@@ -244,7 +243,7 @@ class CrossSection:
         """
         mfailu = math.inf
         mfaill = math.inf
-        for _, y, w, h in self.buckling_modes.one_edge:
+        for _, y, w, h in self.local_buckling.one_edge:
             # sigma = (0.425pi^2*E)/(12(1-nu^2))(t/b)^2 = My/I => M = sigma*I/y
             # Since the piece is under constant flexural stress it must have a constant y value so it must be horizontal
             # This means that thickness t is the piece's height and width b is the piece's width
@@ -272,7 +271,7 @@ class CrossSection:
         """
         mfailu = math.inf
         mfaill = math.inf
-        for _, y, w, h in self.buckling_modes.linear_stress:
+        for _, y, w, h in self.local_buckling.linear_stress:
             # sigma = (4pi^2*E)/(12(1-nu^2))(t/b)^2 = My/I => M = sigma*I/y
             # If the piece is under linear flexural stress, then it must be vertical
             # Thickness t is the piece's width and width b is the piece's height
@@ -298,18 +297,21 @@ class CrossSection:
         Calculate the shear force Vfail that would cause shear buckling.
         """
         vfail = math.inf
-        for _, y, w, h in self.buckling_modes.shear:
+        for (_, y, w, h), min_b_height in self.local_buckling.shear:
             # tau = (5pi^2E)/(12(1 - nu^2))((t/h)^2 + (t/a)^2)
-            # t used in equation is the shorter of the two, and h is the longer of the two
-            t = min(w, h)
-            h2 = max(w, h)
-            tau = (5 * math.pi ** 2 * e) / (12 * (1 - nu ** 2)) * ((t / h2) ** 2 + (t / self.diaphragm_distance) ** 2)
+            # For a vertical plate, thickness t is just the width
+            tau = (5 * math.pi ** 2 * e) / (12 * (1 - nu ** 2)) * ((w / h) ** 2 + (w / self.diaphragm_distance) ** 2)
 
-            # tau = VQ/Ib => V = tau*Ib/Q, and the width b is the same as the t above
-            # To get max shear stress Q needs to be maximized so the depth should be chosen to be as close to ybar as possible
+            # tau = VQ/Ib => V = tau*Ib/Q
+            # Consider 2 depths: Where Q is maximized, and where b is minimized (minimize b/Q)
+            # To maximize Q, depth should be chosen to be as close to ybar as possible
             # First take the max of ybar and y to get either ybar if it's above the bottom or y if ybar is below the bottom
             # and then take the min of the last result and the top y value to clamp it again
-            v = tau * self.i * t / self.calculate_q(min(max(self.ybar, y), y + h))
+            depth = min(max(self.ybar, y), y + h)
+            bq = self.calculate_b(depth) / self.calculate_q(depth)
+            if min_b_height is not None:
+                bq = min(bq, self.calculate_b(min_b_height) / self.calculate_q(min_b_height))
+            v = tau * self.i * bq
             vfail = min(vfail, v)
         return vfail
 
@@ -325,19 +327,19 @@ class CrossSection:
                     ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=1, edgecolor=color, facecolor="none"))
         if show_buckling_modes:
             label = "Two-edge Buckling"
-            for x, y, w, h in self.buckling_modes.two_edge:
+            for x, y, w, h in self.local_buckling.two_edge:
                 ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=1, facecolor="tab:orange", edgecolor="none", label=label))
                 label = None
             label = "One-edge Buckling"
-            for x, y, w, h in self.buckling_modes.one_edge:
+            for x, y, w, h in self.local_buckling.one_edge:
                 ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=1, facecolor="tab:olive", edgecolor="none", label=label))
                 label = None
             label = "Linear-stress buckling"
-            for x, y, w, h in self.buckling_modes.linear_stress:
+            for x, y, w, h in self.local_buckling.linear_stress:
                 ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=1, facecolor="tab:brown", edgecolor="none", label=label))
                 label = None
             label = "Shear buckling"
-            for x, y, w, h in self.buckling_modes.shear:
+            for (x, y, w, h), _ in self.local_buckling.shear:
                 ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=1, facecolor="tab:pink", edgecolor="none", label=label))
                 label = None
         xmin = min(x for x, _, _, _ in self.geometry)
