@@ -109,16 +109,25 @@ def load(ctx, load_type: str, load_amount: str, mfail: List[str], vfail: List[st
     plot_fail(vfail, ("g", "glue"), "Glue Failure", gv, -gv)
     plot_fail(vfail, ("b", "buckling"), "Shear Buckling Failure", bv, -bv)
 
-    print("Factors of Safety:")
     fail_shear = [mv, gv, bv]
     fail_moment_upper = [tmu, cmu, oemu, temu, lsmu]
     fail_moment_lower = [tml, cml, oeml, teml, lsml]
     if load_amount != "max":
-        print("\tShear:", bridge.calculate_shear_fos(sfd, fail_shear), sep="\t")
-        print("\tBending Moment:", bridge.calculate_moment_fos(bmd, fail_moment_upper, fail_moment_lower), sep="\t")
+        fos_shear = bridge.calculate_shear_fos(sfd, fail_shear)
+        fos_moment = bridge.calculate_moment_fos(bmd, fail_moment_upper, fail_moment_lower)
     else:
-        print("\tShear:", min(bridge.calculate_shear_fos(sfd[0], fail_shear), bridge.calculate_shear_fos(sfd[1], fail_shear)), sep="\t")
-        print("\tBending Moment:", min(bridge.calculate_moment_fos(bmd[0], fail_moment_upper, fail_moment_lower), bridge.calculate_moment_fos(bmd[1], fail_moment_upper, fail_moment_lower)), sep="\t")
+        fos_shear = min(bridge.calculate_shear_fos(sfd[0], fail_shear), bridge.calculate_shear_fos(sfd[1], fail_shear))
+        fos_moment = min(bridge.calculate_moment_fos(bmd[0], fail_moment_upper, fail_moment_lower), bridge.calculate_moment_fos(bmd[1], fail_moment_upper, fail_moment_lower))
+    print("Factors of Safety:")
+    print("\tShear:\t", fos_shear, sep="")
+    print("\tBending Moment:\t", fos_moment, sep="")
+    if fos_shear < 1:
+        print("Bridge fails by shear!")
+    if fos_moment < 1:
+        print("Bridge fails by bending!")
+
+    if load_type == "point":
+        print("Failure P:", float(load_amount) * fos_moment)
 
     ax1.legend(loc="upper right")
     ax2.legend(loc="upper right")
