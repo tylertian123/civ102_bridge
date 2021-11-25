@@ -14,14 +14,17 @@ def main_cli(ctx, bridge_yaml: TextIO):
 @click.option("--visualize/--no-visualize", "-v", default=False, help="Show the cross-section in a GUI window.")
 @click.option("--glue/--no-glue", "-g", default=False, help="Show glued components.")
 @click.option("--buckling/--no-buckling", "-b", default=False, help="Show local buckling types.")
+@click.option("--cross-section", "-c", type=int, default=None, help="Show this cross section only.")
 @click.pass_context
-def geometry(ctx, visualize: bool, glue: bool, buckling: bool):
+def geometry(ctx, visualize: bool, glue: bool, buckling: bool, cross_section: int):
     """
     Visualize the bridge geometry and calculate cross-sectional properties.
     """
     bridge = ctx.obj # type: calculate.Bridge
     # Analyze each cross section
     for i, (start, stop, cs) in enumerate(bridge.cross_sections):
+        if cross_section is not None and i + 1 != cross_section:
+            continue
         label = f"Cross section #{i + 1} (start: {start}, stop: {stop})"
         print(label)
         print(f"\tytop:\t{cs.ytop}mm\n\tybot:\t{cs.ybot}mm\n\tybar:\t{cs.ybar}mm\n\tA:\t{cs.area}mm^2\n\tI:\t{cs.i}mm^4")

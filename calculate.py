@@ -692,8 +692,11 @@ class Bridge:
         Calculate the tangential deviation of b from a tangent drawn at a, delta_BA.
         """
         # Compute area and xbar by numerical integration
+        # Cut curvature diagram from a to b
         phi_sub = phi[a:b]
+        # Calculate values for x * phi from a to b
         xphi = np.multiply(np.arange(a, b), phi_sub)
+        # Use trapezoidal sums
         area = np.trapz(phi_sub)
         xbar = np.trapz(xphi) / area
         # Use second moment area theorem
