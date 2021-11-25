@@ -57,6 +57,7 @@ def load(ctx, load_type: str, load_amount: str, mfail: List[str], vfail: List[st
         else:
             forces = bridge.load_train(float(load_amount))
         forces = bridge.reaction_forces(forces)
+        print("Forces:", forces)
         sfd = bridge.make_sfd(forces)
         bmd = bridge.make_bmd(sfd)
     
