@@ -524,8 +524,8 @@ class Bridge:
             sigma1 = self.sigmat * cs.i / (cs.ybar - cs.ytop)
             # When the bottom is in tension, i.e. positive moment
             sigma2 = self.sigmat * cs.i / (cs.ybar - cs.ybot)
-            upper.extend([sigma2] * (stop - start + 1)) # TODO FIX ME
-            lower.extend([sigma1] * (stop - start + 1))
+            upper.extend([sigma2] * (stop - start))
+            lower.extend([sigma1] * (stop - start))
         return np.array(upper), np.array(lower)
     
     def calculate_compressive_mfail(self) -> Tuple[np.ndarray, np.ndarray]:
@@ -545,8 +545,8 @@ class Bridge:
             # When the bottom is in compression, i.e. negative curvature
             # ybot - ybar is negative so this will come out negative
             sigma2 = self.sigmac * cs.i / (cs.ybot - cs.ybar)
-            upper.extend([sigma1] * (stop - start + 1))
-            lower.extend([sigma2] * (stop - start + 1))
+            upper.extend([sigma1] * (stop - start))
+            lower.extend([sigma2] * (stop - start))
         return np.array(upper), np.array(lower)
 
     def calculate_matboard_vfail(self) -> np.ndarray:
@@ -555,7 +555,7 @@ class Bridge:
         """
         vfail = []
         for start, stop, cs in self.cross_sections:
-            vfail.extend([cs.calculate_matboard_vfail(self.tau)] * (stop - start + 1))
+            vfail.extend([cs.calculate_matboard_vfail(self.tau)] * (stop - start))
         return np.array(vfail)
     
     def calculate_glue_vfail(self) -> np.ndarray:
@@ -564,7 +564,7 @@ class Bridge:
         """
         vfail = []
         for start, stop, cs in self.cross_sections:
-            vfail.extend([cs.calculate_glue_vfail(self.glue_tau)] * (stop - start + 1))
+            vfail.extend([cs.calculate_glue_vfail(self.glue_tau)] * (stop - start))
         return np.array(vfail)
     
     def calculate_two_edge_mfail(self) -> Tuple[np.ndarray, np.ndarray]:
@@ -580,8 +580,8 @@ class Bridge:
         lower = []
         for start, stop, cs in self.cross_sections:
             u, l = cs.calculate_two_edge_mfail(self.e, self.nu)
-            upper.extend([u] * (stop - start + 1))
-            lower.extend([l] * (stop - start + 1))
+            upper.extend([u] * (stop - start))
+            lower.extend([l] * (stop - start))
         return np.array(upper), np.array(lower)
     
     def calculate_one_edge_mfail(self) -> Tuple[np.ndarray, np.ndarray]:
@@ -597,8 +597,8 @@ class Bridge:
         lower = []
         for start, stop, cs in self.cross_sections:
             u, l = cs.calculate_one_edge_mfail(self.e, self.nu)
-            upper.extend([u] * (stop - start + 1))
-            lower.extend([l] * (stop - start + 1))
+            upper.extend([u] * (stop - start))
+            lower.extend([l] * (stop - start))
         return np.array(upper), np.array(lower)
     
     def calculate_linear_stress_mfail(self) -> Tuple[np.ndarray, np.ndarray]:
@@ -614,8 +614,8 @@ class Bridge:
         lower = []
         for start, stop, cs in self.cross_sections:
             u, l = cs.calculate_linear_stress_mfail(self.e, self.nu)
-            upper.extend([u] * (stop - start + 1))
-            lower.extend([l] * (stop - start + 1))
+            upper.extend([u] * (stop - start))
+            lower.extend([l] * (stop - start))
         return np.array(upper), np.array(lower)
     
     def calculate_buckling_vfail(self) -> np.ndarray:
@@ -624,7 +624,7 @@ class Bridge:
         """
         vfail = []
         for start, stop, cs in self.cross_sections:
-            vfail.extend([cs.calculate_buckling_vfail(self.e, self.nu)] * (stop - start + 1))
+            vfail.extend([cs.calculate_buckling_vfail(self.e, self.nu)] * (stop - start))
         return np.array(vfail)
     
     def calculate_shear_fos(self, sfd: np.ndarray, fail_shear: List[np.ndarray]) -> float:
@@ -651,8 +651,8 @@ class Bridge:
         """
         Calculate the tangential deviation of b from a tangent drawn at a, delta_BA.
         """
-        area = sum(phi[x] for x in range(a, b + 1))
-        xbar = sum(x * phi[x] for x in range(a, b + 1)) / area
+        area = sum(phi[x] for x in range(a, b))
+        xbar = sum(x * phi[x] for x in range(a, b)) / area
         # Use second moment area theorem
         return area * (b - xbar)
 

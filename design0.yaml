@@ -49,4 +49,4 @@ bridge: # Bridge properties
             minBHeight: null # (Global) height/depth with the least width b when restricted to this piece
       diaphragmDistance: 520 # Longest distance between diaphragms, used for shear buckling
       start: 0 # Where the cross section starts
-      stop: 1280 # Where the cross section ends
+      stop: 1281 # Where the cross section ends; this bound is not inclusive
