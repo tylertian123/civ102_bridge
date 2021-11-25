@@ -1,0 +1,118 @@
+loading: # Loading conditions
+  train:
+    totalWeight: 400 # Total weight of all 3 carriages
+    wheelDistance: 176 # Distance between two wheels on the same carriage
+    wheelEdgeDistance: 52 # Distance between the wheel and the edge of the train
+    carDistance: 60 # Distance between the edges of two carriages
+  points: [565, 1265] # Location of the two point loads, relative to the left end of the bridge
+
+bridge: # Bridge properties
+  material: # Material properties
+    sigmat: 30
+    sigmac: 6
+    tau: 4
+    e: 4000
+    nu: 0.2
+    glueTau: 2
+    thickness: 1.27
+    maxArea: 826008
+  length: 1300 # Total length
+  supports: # Location of the supports
+    - 25
+    - 1085
+  crossSections:
+    - name: left
+      geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
+        top: [0, 73.73, 100, 1.27]
+        gluetab1: [11.27, 72.46, 10, 1.27]
+        gluetab2: [78.73, 72.46, 10, 1.27]
+        side1: [10, 0, 1.27, 73.73]
+        side2: [88.73, 0, 1.27, 73.73]
+        bottom: [11.27, 0, 77.46, 1.27]
+      minBHeight: null # Height/depth that has the least width b; null if centroidal axis
+      gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
+        - pieces: # A list of names of pieces that make up this glued component; names are from geometry
+          - top
+          glueArea: 20 # Total area of glue (b)
+      localBuckling: # Possible plate buckling modes for this cross section
+        twoEdge: # Piece that could fail by plate buckling with both edges restrained
+          - top[w=10.635:-10.635] # Note: Slice an existing piece
+          - [10.635, 0, 78.73, 1.27]
+        oneEdge: # Plate buckling with only one edge restrained
+          - top[w=:10.635]
+          - top[w=-10.635:]
+        linearStress: # Plate buckling with both edges restrained and linearly varying stress
+          - side1[h=0.635:-0.635]:innerSide1 # Slicing an existing piece and assigning it to a new name
+          - side2[h=0.635:-0.635]:innerSide2
+        shear: # Shear buckling
+          - piece: innerSide1 # The plate that is susceptible to shear buckling
+            minBHeight: null # (Global) height/depth with the least width b when restricted to this piece
+      diaphragmDistance: 520 # Longest distance between diaphragms, used for shear buckling
+      start: 0 # Where the cross section starts
+      stop: 285 # Where the cross section ends; this bound is not inclusive
+    - name: right
+      geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
+        top: [0, 73.73, 100, 1.27]
+        gluetab1: [12.54, 72.46, 10, 1.27]
+        gluetab2: [80, 72.46, 10, 1.27]
+        side1: [11.27, 0, 1.27, 73.73]
+        side2: [90, 0, 1.27, 73.73]
+        extension1: [10, 1.27, 1.27, 71.19]
+        extension2: [88.73, 1.27, 1.27, 71.19]
+        bottom: [12.54, 0, 77.46, 1.27]
+      minBHeight: null # Height/depth that has the least width b; null if centroidal axis
+      gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
+        - pieces: # A list of names of pieces that make up this glued component; names are from geometry
+          - top
+          glueArea: 22.54 # Total area of glue (b)
+        - pieces:
+          - extension1
+          glueArea: 71.19
+        - pieces:
+          - extension2
+          glueArea: 71.19
+      localBuckling: # Possible plate buckling modes for this cross section
+        twoEdge: # Piece that could fail by plate buckling with both edges restrained
+          - top[w=11.905:-10.635] # Note: Slice an existing piece
+          - [11.905, 0, 78.73, 1.27]
+        oneEdge: # Plate buckling with only one edge restrained
+          - top[w=:11.905]
+          - top[w=-9.365:]
+        linearStress:
+          - [10, 1.27, 2.54, 71.19]
+          - [88.73, 1.27, 2.54, 71.19]
+        shear:
+          - piece: [10, 1.27, 2.54, 71.19]
+            minBHeight: null
+      diaphragmDistance: .inf # Longest distance between diaphragms, used for shear buckling
+      start: 285 # Where the cross section starts
+      stop: 295 # Where the cross section ends; this bound is not inclusive
+    - name: right
+      geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
+        top: [0, 73.73, 100, 1.27]
+        gluetab1: [12.54, 72.46, 10, 1.27]
+        gluetab2: [80, 72.46, 10, 1.27]
+        side1: [11.27, 0, 1.27, 73.73]
+        side2: [90, 0, 1.27, 73.73]
+        bottom: [12.54, 0, 77.46, 1.27]
+      minBHeight: null # Height/depth that has the least width b; null if centroidal axis
+      gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
+        - pieces: # A list of names of pieces that make up this glued component; names are from geometry
+          - top
+          glueArea: 20 # Total area of glue (b)
+      localBuckling: # Possible plate buckling modes for this cross section
+        twoEdge: # Piece that could fail by plate buckling with both edges restrained
+          - top[w=11.905:-9.365]
+          - [11.905, 0, 78.73, 1.27]
+        oneEdge: # Plate buckling with only one edge restrained
+          - top[w=:11.905]
+          - top[w=-9.365:]
+        linearStress: # Plate buckling with both edges restrained and linearly varying stress
+          - side1[h=0.635:-0.635]:innerSide1 # Slicing an existing piece and assigning it to a new name
+          - side2[h=0.635:-0.635]:innerSide2
+        shear: # Shear buckling
+          - piece: innerSide1 # The plate that is susceptible to shear buckling
+            minBHeight: null # (Global) height/depth with the least width b when restricted to this piece
+      diaphragmDistance: 520 # Longest distance between diaphragms, used for shear buckling
+      start: 295 # Where the cross section starts
+      stop: 1301 # Where the cross section ends; this bound is not inclusive
