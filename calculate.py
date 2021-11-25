@@ -79,7 +79,8 @@ class CrossSection:
         to give to this rect, and if given, the new rect produced by the slice will be stored in known_rects.
 
         Both w and h type slices can be used together, or only one or none can be used. If wstart/wstop/hstart/hstop
-        are negative, they are to be interpreted as starting from the far edge (like how Python list slicing works).
+        begin with a star, they are to be interpreted as starting from the far edge (like how Python list slicing works
+        with negative indices).
         wstart and hstart can be omitted and default to 0. wstop and hstop can be omitted and default to the width
         and height of the rect to be sliced respectively.
         """
@@ -101,6 +102,13 @@ class CrossSection:
                 s = s.strip()
                 slice_type, slice_range = s.split("=")
                 start, stop = slice_range.split(":")
+                start_starred = start.startswith("*")
+                if start_starred:
+                    start = start[1:]
+                stop_starred = stop.startswith("*")
+                if stop_starred:
+                    stop = stop[1:]
+                
                 # Convert start to a number, with default starting at 0
                 start = float(start) if start else 0
                 # Convert stop to a number, with default stopping at the full width/height
@@ -111,11 +119,11 @@ class CrossSection:
                     # Default for stop is the end of the rect
                     if stop is None:
                         stop = new_rect[2]
-                    # If start and stop are negative, make them wrap around by adding a full width to them
-                    if stop < 0:
-                        stop += new_rect[2]
-                    if start < 0:
+                    # If start and stop are starred, make them relative to the end
+                    if start_starred:
                         start += new_rect[2]
+                    if stop_starred:
+                        stop += new_rect[2]
                     # Shrink from the right first
                     new_rect[2] = stop
                     # Shrink from the left, shifting x to the right and reducing width
@@ -125,10 +133,10 @@ class CrossSection:
                     # Same logic as above
                     if stop is None:
                         stop = new_rect[3]
-                    if stop < 0:
-                        stop += new_rect[3]
-                    if start < 0:
+                    if start_starred:
                         start += new_rect[3]
+                    if stop_starred:
+                        stop += new_rect[3]
                     # Shrink from the top
                     new_rect[3] = stop
                     # Shrink from the bottom
