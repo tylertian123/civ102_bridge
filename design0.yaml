@@ -14,6 +14,8 @@ bridge: # Bridge properties
     e: 4000
     nu: 0.2
     glueTau: 2
+    thickness: 1.27
+    maxArea: 826008
   length: 1280 # Total length
   supports: # Location of the supports
     - 15

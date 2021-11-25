@@ -372,6 +372,9 @@ class Bridge:
         self.e = values["bridge"]["material"]["e"] # Young's modulus
         self.nu = values["bridge"]["material"]["nu"] # Poisson's ratio
 
+        self.thickness = values["bridge"]["material"]["thickness"]
+        self.max_area = values["bridge"]["material"]["maxArea"]
+
         self.cross_sections = [] # type: List[Tuple[int, int, CrossSection]]
         named_cross_sections = {}
         for d in values["bridge"]["crossSections"]:
@@ -521,7 +524,7 @@ class Bridge:
             sigma1 = self.sigmat * cs.i / (cs.ybar - cs.ytop)
             # When the bottom is in tension, i.e. positive moment
             sigma2 = self.sigmat * cs.i / (cs.ybar - cs.ybot)
-            upper.extend([sigma2] * (stop - start + 1))
+            upper.extend([sigma2] * (stop - start + 1)) # TODO FIX ME
             lower.extend([sigma1] * (stop - start + 1))
         return np.array(upper), np.array(lower)
     
@@ -665,3 +668,11 @@ class Bridge:
         delta_xa = self.calculate_tangential_deviation(phi, self.supports[0], x)
         return (delta_ba / (self.supports[1] - self.supports[0])) * (x - self.supports[0]) - delta_xa
 
+    def matboard_area(self) -> float:
+        """
+        Get an estimate of the total area of matboard used for this bridge design.
+
+        Note that numbers do not account for folding and assumes that matboard can be perfectly utilized so this
+        number is likely not very accurate, but may serve as a rough guide.
+        """
+        return sum(cs.area * (stop - start) for start, stop, cs in self.cross_sections) / self.thickness

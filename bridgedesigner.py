@@ -29,6 +29,10 @@ def geometry(ctx, visualize: bool, glue: bool, buckling: bool):
             plt.gcf().canvas.set_window_title(label)
             plt.gca().set_title(label)
             plt.show()
+    area = bridge.matboard_area()
+    print(f"Estimate of total matboard area used: {round(area)}mm^2 out of {bridge.max_area}mm^2 ({area / bridge.max_area * 100:.2f}%)")
+    if area > bridge.max_area:
+        print("Max matboard area exceeded!")
 
 
 @main_cli.command()
