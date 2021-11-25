@@ -13,22 +13,26 @@ def main_cli(ctx, bridge_yaml: TextIO):
 @main_cli.command()
 @click.option("--visualize/--no-visualize", "-v", default=False, help="Show the cross-section in a GUI window.")
 @click.option("--glue/--no-glue", "-g", default=False, help="Show glued components.")
-@click.option("--buckling/--no-buckling", "-b", default=False, help="Show buckling types.")
+@click.option("--buckling/--no-buckling", "-b", default=False, help="Show local buckling types.")
 @click.pass_context
 def geometry(ctx, visualize: bool, glue: bool, buckling: bool):
     """
     Visualize the bridge geometry and calculate cross-sectional properties.
     """
     bridge = ctx.obj # type: calculate.Bridge
+    # Analyze each cross section
     for i, (start, stop, cs) in enumerate(bridge.cross_sections):
         label = f"Cross section #{i + 1} (start: {start}, stop: {stop})"
         print(label)
         print(f"\tytop:\t{cs.ytop}mm\n\tybot:\t{cs.ybot}mm\n\tybar:\t{cs.ybar}mm\n\tA:\t{cs.area}mm^2\n\tI:\t{cs.i}mm^4")
         if visualize:
-            cs.visualize(plt.gca(), show_glued_components=glue, show_buckling_modes=buckling)
+            # Visualize the cross section on the global current axis
+            cs.visualize(plt.gca(), show_glued_components=glue, show_local_buckling=buckling)
+            # Set window and chart title
             plt.gcf().canvas.set_window_title(label)
             plt.gca().set_title(label)
             plt.show()
+    # Estimate matboard area used
     area = bridge.matboard_area()
     print(f"Estimate of total matboard area used: {round(area)}mm^2 out of {bridge.max_area}mm^2 ({area / bridge.max_area * 100:.2f}%)")
     if area > bridge.max_area:
@@ -52,19 +56,23 @@ def load(ctx, load_type: str, load_amount: str, mfail: List[str], vfail: List[st
     """
     bridge = ctx.obj # type: calculate.Bridge
 
+    # Special case for max train loading
     if load_type == "train" and load_amount == "max":
         sfd = bridge.max_sfd_train()
         bmd = bridge.max_bmd_train()
     else:
+        # Compute load forces
         if load_type == "point":
             forces = bridge.load_points(float(load_amount))
         else:
             forces = bridge.load_train(float(load_amount))
+        # Compute reaction forces, sfd, bmd
         forces = bridge.reaction_forces(forces)
         print("Forces:", forces)
         sfd = bridge.make_sfd(forces)
         bmd = bridge.make_bmd(sfd)
     
+    # Set up and label plots
     x = np.arange(0, bridge.length + 1)
     fig, (ax1, ax2) = plt.subplots(1, 2)
     fig.canvas.set_window_title("SFD and BMD")
@@ -78,6 +86,7 @@ def load(ctx, load_type: str, load_amount: str, mfail: List[str], vfail: List[st
     ax2.axhline(0, c="k")
 
     if load_amount == "max":
+        # Additional plots needed since there is both a max and a min for max train loading
         ax1.plot(x, sfd[0], label="Max Shear")
         ax1.plot(x, sfd[1], label="Min Shear")
         ax2.plot(x, bmd[0], label="Max Bending Moment")
@@ -86,13 +95,17 @@ def load(ctx, load_type: str, load_amount: str, mfail: List[str], vfail: List[st
         ax1.plot(x, sfd, label="Shear")
         ax2.plot(x, bmd, label="Bending Moment")
     
+    # Helper function; if match is in keys, then plot the upper and lower bound and print out its value
     def plot_fail(keys: List[str], match: Iterable[str], label: str, upper: np.ndarray, lower: np.ndarray):
         if "all" in keys or any(m in keys for m in match):            
             print("Failure values for ", label, ":", sep="")
             for i, (start, stop, _) in enumerate(bridge.cross_sections):
+                # Find the value of the bounds somewhat arbitrarily by taking the value at the middle
                 print(f"\tCross section #{i + 1} (start: {start}, stop: {stop}):\t({lower[(start - stop) // 2]}, {upper[(start - stop) // 2]})")
 
+            # Choose the right axis, ax1 for shear and ax2 for bending moment
             ax = ax1 if keys is vfail else ax2
+            # Plot both with the same colour but only label 1
             p = ax.plot(x, upper, label=label)
             ax.plot(x, lower, c=p[0].get_c())
     
@@ -114,6 +127,7 @@ def load(ctx, load_type: str, load_amount: str, mfail: List[str], vfail: List[st
     plot_fail(vfail, ("g", "glue"), "Glue Failure", gv, -gv)
     plot_fail(vfail, ("b", "buckling"), "Shear Buckling Failure", bv, -bv)
 
+    # Calculate FoS
     fail_shear = [mv, gv, bv]
     fail_moment_upper = [tmu, cmu, oemu, temu, lsmu]
     fail_moment_lower = [tml, cml, oeml, teml, lsml]
@@ -121,6 +135,7 @@ def load(ctx, load_type: str, load_amount: str, mfail: List[str], vfail: List[st
         fos_shear = bridge.calculate_shear_fos(sfd, fail_shear)
         fos_moment = bridge.calculate_moment_fos(bmd, fail_moment_upper, fail_moment_lower)
     else:
+        # For max train loading, consider both the max and min loading
         fos_shear = min(bridge.calculate_shear_fos(sfd[0], fail_shear), bridge.calculate_shear_fos(sfd[1], fail_shear))
         fos_moment = min(bridge.calculate_moment_fos(bmd[0], fail_moment_upper, fail_moment_lower), bridge.calculate_moment_fos(bmd[1], fail_moment_upper, fail_moment_lower))
     print("Factors of Safety:")
@@ -131,6 +146,7 @@ def load(ctx, load_type: str, load_amount: str, mfail: List[str], vfail: List[st
     if fos_moment < 1:
         print("Bridge fails by bending!")
 
+    # Calculate failure P value by simply multiplying the current load by the FoS
     if load_type == "point":
         print("Failure P:", float(load_amount) * fos_moment)
     if load_amount != "max":

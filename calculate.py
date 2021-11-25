@@ -51,6 +51,8 @@ class CrossSection:
         self.local_buckling = LocalBuckling(two_edge=rect_list(values["localBuckling"].get("twoEdge", [])),
             one_edge=rect_list(values["localBuckling"].get("oneEdge", [])),
             linear_stress=rect_list(values["localBuckling"].get("linearStress", [])),
+            # Shear buckling is more complicated and consists of tuples of (rect, min_b_height)
+            # This is because b might vary over the depth of the rect since b is calculated for the whole structure
             shear=[(self.parse_rect(values["geometry"], d["piece"]), d["minBHeight"]) for d in values["localBuckling"].get("shear", [])])
         self.diaphragm_distance = values.get("diaphragmDistance", math.inf)
 
@@ -81,37 +83,46 @@ class CrossSection:
         wstart and hstart can be omitted and default to 0. wstop and hstop can be omitted and default to the width
         and height of the rect to be sliced respectively.
         """
+        # Return rect if already the right type
         if isinstance(rect, list) or isinstance(rect, tuple):
             return rect
+        # Direct lookup if the rect is just a name
         if rect.isalnum():
             return known_rects[rect]
 
         try:
+            # Find the opening and closing brace of the slice, and slice out the slice
             open_idx = rect.index("[")
             close_idx = rect.index("]")
             rect_slice = rect[open_idx + 1:close_idx]
+            # Look up the rect name and make a copy to modify
             new_rect = known_rects[rect[:open_idx]].copy()
             for s in rect_slice.split(","):
                 s = s.strip()
                 slice_type, slice_range = s.split("=")
                 start, stop = slice_range.split(":")
+                # Convert start to a number, with default starting at 0
                 start = float(start) if start else 0
+                # Convert stop to a number, with default stopping at the full width/height
+                # since this number will vary, it's assigned later
                 stop = float(stop) if stop else None
                 # Width slice
                 if slice_type == "w":
                     # Default for stop is the end of the rect
                     if stop is None:
                         stop = new_rect[2]
+                    # If start and stop are negative, make them wrap around by adding a full width to them
                     if stop < 0:
                         stop += new_rect[2]
                     if start < 0:
                         start += new_rect[2]
                     # Shrink from the right first
                     new_rect[2] = stop
-                    # Shrink from the left
+                    # Shrink from the left, shifting x to the right and reducing width
                     new_rect[0] += start
                     new_rect[2] -= start
                 elif slice_type == "h":
+                    # Same logic as above
                     if stop is None:
                         stop = new_rect[3]
                     if stop < 0:
@@ -125,6 +136,7 @@ class CrossSection:
                     new_rect[3] -= start
                 else:
                     raise ValueError(f"Unknown slice type: {slice_type}")
+            # Find the tail where a new name is assigned to the new rect
             tail = rect[close_idx + 2:]
             if tail:
                 if not tail.isalnum():
@@ -144,6 +156,7 @@ class CrossSection:
         is only counted if it's above y0; if it's false, then the piece's width is only counted if it's below y0.
         If it's None, then the lesser of the two will be returned.
         """
+        # Default calculates both above and below y0 and takes the minimum
         if above is None:
             return min(self.calculate_b(y0, True), self.calculate_b(y0, False))
         # Consider the piece if y0 is in the middle of it
@@ -187,6 +200,7 @@ class CrossSection:
         # tau = VQ/Ib => V = tau*Ib/Q
         # Consider two points: the centroid, where Q is maximized, and the depth where b is minimized
         v = tau * self.i * self.calculate_b(self.ybar, above=None) / self.calculate_q(self.ybar)
+        # If minimum b depth is specified, also try this depth
         if self.min_b_height is not None:
             v = min(v, tau * self.i * self.calculate_b(self.min_b_height, above=None) / self.calculate_q(self.min_b_height))
         return v
@@ -199,7 +213,7 @@ class CrossSection:
         """
         # Calculate for each glued component
         # V = tau*Ib/Q for each component like above
-        # The b of each piece is provided in the cross section specifications
+        # The b of each piece is provided in the cross section specifications as the glue area
         # The Q is equal to the absolute value of the sum of area times centroidal distance
         return tau * self.i * min(b / abs(sum(w * h * (y + h / 2 - self.ybar) for _, y, w, h in geom))
             for geom, b in self.glued_components)
@@ -213,6 +227,7 @@ class CrossSection:
         negative than the lower bound then the structure will fail. Note that if the upper/lower bound does not
         exist for this mode then math.inf will be returned.
         """
+        # Upper and lower bound, for when bottom is in compression and when top is in compression respectively
         mfailu = math.inf
         mfaill = math.inf
         for _, y, w, h in self.local_buckling.two_edge:
@@ -308,6 +323,7 @@ class CrossSection:
             # First take the max of ybar and y to get either ybar if it's above the bottom or y if ybar is below the bottom
             # and then take the min of the last result and the top y value to clamp it again
             depth = min(max(self.ybar, y), y + h)
+            # Calculate the fraction b/Q at both the depth closest to the centroidal axis and the supplied min b depth
             bq = self.calculate_b(depth) / self.calculate_q(depth)
             if min_b_height is not None:
                 bq = min(bq, self.calculate_b(min_b_height) / self.calculate_q(min_b_height))
@@ -315,17 +331,21 @@ class CrossSection:
             vfail = min(vfail, v)
         return vfail
 
-    def visualize(self, ax: Axes, show_glued_components: bool = False, show_buckling_modes: bool = False) -> None:
+    def visualize(self, ax: Axes, show_glued_components: bool = False, show_local_buckling: bool = False) -> None:
         """
         Draw the cross section onto a matplotlib plot to visualize it.
         """
+        # Draw all the base rectangles
         for x, y, w, h in self.geometry:
             ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=1, edgecolor="k", facecolor="none"))
+        # Show the different glued components in different colours
         if show_glued_components:
             for (geom, _), color in zip(self.glued_components, itertools.cycle("bgcmy")):
                 for x, y, w, h in geom:
                     ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=1, edgecolor=color, facecolor="none"))
-        if show_buckling_modes:
+        if show_local_buckling:
+            # Show the components that can undergo each local buckling mode
+            # Only one of the rectangles should be labelled so there won't be duplicate legend entires
             label = "Two-edge Buckling"
             for x, y, w, h in self.local_buckling.two_edge:
                 ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=1, facecolor="tab:orange", edgecolor="none", label=label))
@@ -342,13 +362,16 @@ class CrossSection:
             for (x, y, w, h), _ in self.local_buckling.shear:
                 ax.add_patch(patches.Rectangle((x, y), w, h, linewidth=1, facecolor="tab:pink", edgecolor="none", label=label))
                 label = None
+        # Find the minimum and maximum x and y value and adjust the plot's x and y range accordingly
         xmin = min(x for x, _, _, _ in self.geometry)
         xmax = max(x + w for x, _, w, _ in self.geometry)
         ymin = min(y for _, y, _, _ in self.geometry)
         ymax = max(y + h for _, y, _, h in self.geometry)
         ax.set_xlim(xmin - 10, xmax + 10)
         ax.set_ylim(ymin - 10, ymax + 10)
+        # Show centroid
         ax.axhline(self.ybar, c="r", label="Centroid")
+        # Set aspect ratio between x and y to be equal so the shape is preserved
         ax.set_aspect("equal")
         ax.legend(loc="best")
 
@@ -372,11 +395,14 @@ class Bridge:
         self.e = values["bridge"]["material"]["e"] # Young's modulus
         self.nu = values["bridge"]["material"]["nu"] # Poisson's ratio
 
-        self.thickness = values["bridge"]["material"]["thickness"]
-        self.max_area = values["bridge"]["material"]["maxArea"]
+        self.thickness = values["bridge"]["material"]["thickness"] # Thickness of matboard
+        self.max_area = values["bridge"]["material"]["maxArea"] # Total area of matboard we have
 
+        # Construct cross sections
+        # Cross sections are tuples of (start, stop, cs) where cs is a CrossSection object
         self.cross_sections = [] # type: List[Tuple[int, int, CrossSection]]
         named_cross_sections = {}
+        # Handle named cross section lookup
         for d in values["bridge"]["crossSections"]:
             if "geometry" in d:
                 cs = CrossSection(d)
@@ -451,6 +477,7 @@ class Bridge:
         """
         Compute the Bending Moment Diagram from the Shear Force Diagram.
         """
+        # Accumulate sfd to find bmd
         bmd = [0] * len(sfd)
         moment = 0
         for x in range(len(sfd)):
@@ -465,12 +492,13 @@ class Bridge:
         """
         Compute the Curvature Diagram from the Bending Moment Diagram.
         """
+        # Keep track of the right cross section
         i = 0
         cs = self.cross_sections[i]
         phi = []
         for x in range(len(bmd)):
-            # Find the right cross section
-            while x > cs[1]:
+            # Move to the next cross section if necessary
+            while x >= cs[1]:
                 i += 1
                 cs = self.cross_sections[i]
             # Curvature phi = M / EI
@@ -481,23 +509,30 @@ class Bridge:
         """
         Compute the maximum shear force at every point from all possible train locations.
         """
+        # Upper and lower bound of shear force
         upper = np.zeros((self.length + 1,))
         lower = np.zeros((self.length + 1,))
         # Sample locations from the front of the train being at the left end of the bridge,
         # to when the front of the train is at the length of the bridge plus the length of the train
         lend = self.train_wheel_edge_distance
         rend = self.length + 4 * self.train_wheel_edge_distance + 3 * self.train_wheel_distance + 2 * self.train_car_distance
+        # Create and loop through locations
         locations = np.arange(lend, rend + 1, step)
         for location in locations:
+            # Make the sfd for this loading location
             sfd = self.make_sfd(self.reaction_forces(self.load_train(location)))
+            # Update upper and lower limits
             upper = np.maximum(upper, sfd)
             lower = np.minimum(lower, sfd)
         return upper, lower
     
     def max_bmd_train(self, step: Optional[int] = 4) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Compute the maximum bending moment at every point from all possible train locations.
+        """
+        # Same logic as above
         upper = np.zeros((self.length + 1,))
         lower = np.zeros((self.length + 1,))
-        # Same logic as above
         lend = self.train_wheel_edge_distance
         rend = self.length + 4 * self.train_wheel_edge_distance + 3 * self.train_wheel_distance + 2 * self.train_car_distance
         locations = np.arange(lend, rend + 1, step)
@@ -521,11 +556,12 @@ class Bridge:
             # sigma = M*y/I => M = sigma*I/y
             # sigma1 is for when the top is in tension, i.e. negative moment
             # sigma1 will come out negative since ybar < ytop
-            sigma1 = self.sigmat * cs.i / (cs.ybar - cs.ytop)
+            m1 = self.sigmat * cs.i / (cs.ybar - cs.ytop)
             # When the bottom is in tension, i.e. positive moment
-            sigma2 = self.sigmat * cs.i / (cs.ybar - cs.ybot)
-            upper.extend([sigma2] * (stop - start))
-            lower.extend([sigma1] * (stop - start))
+            m2 = self.sigmat * cs.i / (cs.ybar - cs.ybot)
+            # Same for the entire cross section
+            upper.extend([m2] * (stop - start))
+            lower.extend([m1] * (stop - start))
         return np.array(upper), np.array(lower)
     
     def calculate_compressive_mfail(self) -> Tuple[np.ndarray, np.ndarray]:
@@ -541,12 +577,12 @@ class Bridge:
         lower = []
         for start, stop, cs in self.cross_sections:
             # sigma1 is for when the top is in compression, i.e. positive curvature
-            sigma1 = self.sigmac * cs.i / (cs.ytop - cs.ybar)
+            m1 = self.sigmac * cs.i / (cs.ytop - cs.ybar)
             # When the bottom is in compression, i.e. negative curvature
             # ybot - ybar is negative so this will come out negative
-            sigma2 = self.sigmac * cs.i / (cs.ybot - cs.ybar)
-            upper.extend([sigma1] * (stop - start))
-            lower.extend([sigma2] * (stop - start))
+            m2 = self.sigmac * cs.i / (cs.ybot - cs.ybar)
+            upper.extend([m1] * (stop - start))
+            lower.extend([m2] * (stop - start))
         return np.array(upper), np.array(lower)
 
     def calculate_matboard_vfail(self) -> np.ndarray:
@@ -554,6 +590,7 @@ class Bridge:
         Calculate the shear force Vfail that would result in matboard shear failure.
         """
         vfail = []
+        # For each cross section, compute a single Vfail
         for start, stop, cs in self.cross_sections:
             vfail.extend([cs.calculate_matboard_vfail(self.tau)] * (stop - start))
         return np.array(vfail)
@@ -580,6 +617,7 @@ class Bridge:
         lower = []
         for start, stop, cs in self.cross_sections:
             u, l = cs.calculate_two_edge_mfail(self.e, self.nu)
+            # Same Mfail for the entire cross section just like Vfail
             upper.extend([u] * (stop - start))
             lower.extend([l] * (stop - start))
         return np.array(upper), np.array(lower)
@@ -632,8 +670,9 @@ class Bridge:
         Compute the Factor of Safety between the internal shear force in sfd and the failure shear forces
         in fail_shear.
         """
-        # Find the minimum shear failure force by taking the minimum of all the failure shear forces
+        # Find the minimum failure shear force by taking the minimum of all the failure shear forces
         min_fail_shear = [min(v) for v in zip(*fail_shear)]
+        # FoS is the minimum of the limit divided by the load it's carrying at all points
         return min((cap / abs(dem) for cap, dem in zip(min_fail_shear, sfd) if dem != 0), default=math.inf)
     
     def calculate_moment_fos(self, bmd: np.ndarray, fail_moment_upper: List[np.ndarray], fail_moment_lower: List[np.ndarray]) -> float:
@@ -644,6 +683,7 @@ class Bridge:
         # Find the max and min failure bending moment
         upper = [min(m) for m in zip(*fail_moment_upper)]
         lower = [max(m) for m in zip(*fail_moment_lower)]
+        # FoS needs to consider both when bending moment is positive and when it's negative
         return min(min((cap / dem for cap, dem in zip(upper, bmd) if dem > 0), default=math.inf),
             min((cap / dem for cap, dem in zip(lower, bmd) if dem < 0), default=math.inf))
     
@@ -651,6 +691,7 @@ class Bridge:
         """
         Calculate the tangential deviation of b from a tangent drawn at a, delta_BA.
         """
+        # Compute area and xbar by numerical integration
         area = sum(phi[x] for x in range(a, b))
         xbar = sum(x * phi[x] for x in range(a, b)) / area
         # Use second moment area theorem
@@ -675,4 +716,6 @@ class Bridge:
         Note that numbers do not account for folding and assumes that matboard can be perfectly utilized so this
         number is likely not very accurate, but may serve as a rough guide.
         """
+        # Get an estimate by considering the area of each cross section and the length of that cross section
+        # and then dividing the volume by the thickness
         return sum(cs.area * (stop - start) for start, stop, cs in self.cross_sections) / self.thickness
