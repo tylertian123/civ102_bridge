@@ -3,7 +3,7 @@ import math
 import itertools
 from collections import namedtuple
 from typing import Any, Dict, List, Optional, Tuple, Union
-from matplotlib import patches
+from matplotlib import patches, pyplot as plt
 from matplotlib.axes import Axes
 
 import yaml
@@ -461,6 +461,26 @@ class Bridge:
         Construct bridge from the input YAML file.
         """
         return Bridge(yaml.load(file, Loader))
+    
+    def elevation_view(self, ax: Axes) -> None:
+        """
+        Draw the elevation view onto a matplotlib axis.
+        """
+        ccycle = plt.get_cmap("tab10")
+        miny = 0
+        maxy = 0
+        for i, (start, stop, cs) in enumerate(self.cross_sections):
+            c = ccycle(i)
+            label = cs.name
+            for _, y, _, h in cs.geometry:
+                ax.add_patch(patches.Rectangle((start, y), stop - start, h, edgecolor=c, facecolor="none", label=label))
+                label= None
+                miny = min(miny, y)
+                maxy = max(maxy, y + h)
+        ax.set_xlim(self.cross_sections[0][0] - 50, self.cross_sections[-1][1] + 50)
+        ax.set_ylim(miny - 50, maxy + 50)
+        ax.set_aspect("equal")
+        ax.legend(loc="best")
 
     def load_train(self, dist: float) -> Forces:
         """
