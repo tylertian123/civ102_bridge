@@ -36,8 +36,12 @@ def floatleq(a: float, b: float) -> bool:
 
 LocalBuckling = namedtuple("LocalBuckling", ("two_edge", "one_edge", "linear_stress", "shear"))
 
-# A class to hold and compute properties of cross sections
+
 class CrossSection:
+    """
+    A class to hold and compute properties of cross sections.
+    """
+
     ALL_NAMED_RECTS = {} # type: Dict[str, Dict[str, Rect]]
 
     def __init__(self, values: Dict[str, Any]) -> None:
@@ -66,7 +70,7 @@ class CrossSection:
         self.ybar = sum(w * h * (y + h / 2) for _, y, w, h in self.geometry) / self.area
         # Parallel axis theorem: sum wh^3/12 + Ad^2
         self.i = sum(w * h ** 3 / 12 + w * h * (y + h / 2 - self.ybar) ** 2 for _, y, w, h in self.geometry)
-    
+
     def parse_rect(self, rect: Union[str, Rect]) -> Rect:
         """
         Parse a rect from the YAML into a proper Rect (list or tuple of [x, y, width, height]).
@@ -130,7 +134,7 @@ class CrossSection:
                     stop_starred = stop.startswith("*")
                     if stop_starred:
                         stop = stop[1:]
-                    
+
                     # Convert start to a number, with default starting at 0
                     start = float(start) if start else 0
                     # Convert stop to a number, with default stopping at the full width/height
@@ -177,7 +181,7 @@ class CrossSection:
             raise ValueError(f"Invalid syntax: {rect}") from e
         except KeyError as e:
             raise ValueError(f"Unknown name: {rect[:open_idx]}") from e
-    
+
     def calculate_b(self, y0: float, above: Optional[bool] = None) -> float:
         """
         Calculate the total cross-sectional width b at depth y0.
@@ -220,7 +224,7 @@ class CrossSection:
         # Since the distance from ybar is signed, the resulting Q might be negative
         # But shear stress doesn't really have a direction so Q is taken to be the absolute value
         return abs(q)
-    
+
     def calculate_matboard_vfail(self, tau: float) -> float:
         """
         Calculate the shear force Vfail that causes shear failure of the matboard.
@@ -234,11 +238,11 @@ class CrossSection:
         if self.min_b_height is not None:
             v = min(v, tau * self.i * self.calculate_b(self.min_b_height, above=None) / self.calculate_q(self.min_b_height))
         return v
-    
+
     def calculate_glue_vfail(self, tau: float) -> float:
         """
         Calculate the shear force Vfail that causes shear failure of the glue.
-        
+
         tau is the shear strength of the glue.
         """
         # Calculate for each glued component
@@ -276,11 +280,13 @@ class CrossSection:
                 mfail = self.i * sigma / (self.ybar - y)
                 mfaill = min(mfaill, mfail)
         return mfailu, -mfaill
-    
+
     def calculate_one_edge_mfail(self, e: float, nu: float) -> Tuple[float, float]:
         """
         Calculate the bending moment Mfail that causes thin-plate buckling where only one edge is restrained and
-        the piece is under constant flexural stress.
+        the piece is under constant flexural stress, or linearly varying flexural stress. The critical stress for
+        linearly varying flexural stress is calculated using the same formula as if the stress was constant with
+        maximum magnitude to be conservative (k = 0.425).
 
         Returns an upper bound and a lower bound. If the bending moment is higher than the upper bound or more
         negative than the lower bound then the structure will fail. Note that if the upper/lower bound does not
@@ -290,16 +296,18 @@ class CrossSection:
         mfaill = math.inf
         for _, y, w, h in self.local_buckling.one_edge:
             # sigma = (0.425pi^2*E)/(12(1-nu^2))(t/b)^2 = My/I => M = sigma*I/y
-            # Since the piece is under constant flexural stress it must have a constant y value so it must be horizontal
-            # This means that thickness t is the piece's height and width b is the piece's width
-            sigma = (0.425 * math.pi ** 2 * e) / (12 * (1 - nu ** 2)) * (h / w) ** 2
-            # Assume piece is either entirely above or entirely below centroid
-            if y > self.ybar:
+            # Handle both constant and linearly varying flexural stresses
+            # The piece could be either vertical or horizontal
+            t = min(w, h)
+            b = max(w, h)
+            sigma = (0.425 * math.pi ** 2 * e) / (12 * (1 - nu ** 2)) * (t / b) ** 2
+            # Handle cases where the piece is above the centroid and the piece is below the centroid
+            if y + h > self.ybar:
                 # If the piece is entirely above centroid, then it's only under compression for positive bending moment
                 # Use the top edge as y for max stress
                 mfail = self.i * sigma / (y + h - self.ybar)
                 mfailu = min(mfailu, mfail)
-            else:
+            if y < self.ybar:
                 # If the piece is entirely below centroid, then it's only under compression for negative bending moment
                 mfail = self.i * sigma / (self.ybar - y)
                 mfaill = min(mfaill, mfail)
@@ -336,7 +344,7 @@ class CrossSection:
                 mfail = self.i * sigma / (self.ybar - y)
                 mfaill = min(mfaill, mfail)
         return mfailu, -mfaill
-    
+
     def calculate_buckling_vfail(self, e: float, nu: float) -> float:
         """
         Calculate the shear force Vfail that would cause shear buckling.
@@ -406,8 +414,11 @@ class CrossSection:
         ax.legend(loc="best")
 
 
-# A class to hold all the bridge and loading geometry constants
 class Bridge:
+    """
+    Main class for holding bridge geometry and material constants and calculating loads.
+    """
+
     def __init__(self, values: Dict[str, Any]) -> None:
         self.train_wheel_load = values["loading"]["train"]["totalWeight"] / 3 / 2 # Load on each wheel
         self.train_wheel_distance = values["loading"]["train"]["wheelDistance"] # Distance between two wheels on the same carriage
@@ -446,6 +457,9 @@ class Bridge:
     
     @classmethod
     def from_yaml(cls, file) -> "Bridge":
+        """
+        Construct bridge from the input YAML file.
+        """
         return Bridge(yaml.load(file, Loader))
 
     def load_train(self, dist: float) -> Forces:
