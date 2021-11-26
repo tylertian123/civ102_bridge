@@ -38,22 +38,25 @@ LocalBuckling = namedtuple("LocalBuckling", ("two_edge", "one_edge", "linear_str
 
 # A class to hold and compute properties of cross sections
 class CrossSection:
+    ALL_NAMED_RECTS = {} # type: Dict[str, Dict[str, Rect]]
+
     def __init__(self, values: Dict[str, Any]) -> None:
+        self.name = values["name"]
+        CrossSection.ALL_NAMED_RECTS[self.name] = {}
         # Geometry consists of a list of rectangles in the form of [x, y, width, height]
-        self.geometry = list(values["geometry"].values())
-        self.min_b_height = values["minBHeight"]
-        # For each item listed in the pieces, it could either be a rectangle or the name of another piece
-        rect_list = lambda l: [self.parse_rect(values["geometry"], rect) for rect in l]
+        self.geometry = [self.parse_rect(rect) for rect in values["geometry"]]
+        self.min_b_height = values.get("minBHeight")
         # An array of glued components, with form (geom, b)
         # Where geom is a list of rectangles that make up the component and b is the glue area
-        self.glued_components = [(rect_list(c["pieces"]), c["glueArea"]) for c in values["gluedComponents"]]
+        self.glued_components = [([self.parse_rect(r) for r in c["pieces"]], c["glueArea"])
+            for c in values["gluedComponents"]]
         # Specifications of the scenarios for all the plate buckling modes
-        self.local_buckling = LocalBuckling(two_edge=rect_list(values["localBuckling"].get("twoEdge", [])),
-            one_edge=rect_list(values["localBuckling"].get("oneEdge", [])),
-            linear_stress=rect_list(values["localBuckling"].get("linearStress", [])),
+        self.local_buckling = LocalBuckling(two_edge=[self.parse_rect(r) for r in values["localBuckling"].get("twoEdge", [])],
+            one_edge=[self.parse_rect(r) for r in values["localBuckling"].get("oneEdge", [])],
+            linear_stress=[self.parse_rect(r) for r in values["localBuckling"].get("linearStress", [])],
             # Shear buckling is more complicated and consists of tuples of (rect, min_b_height)
             # This is because b might vary over the depth of the rect since b is calculated for the whole structure
-            shear=[(self.parse_rect(values["geometry"], d["piece"]), d["minBHeight"]) for d in values["localBuckling"].get("shear", [])])
+            shear=[(self.parse_rect(d["piece"]), d["minBHeight"]) for d in values["localBuckling"].get("shear", [])])
         self.diaphragm_distance = values.get("diaphragmDistance", math.inf)
 
         # Compute properties
@@ -64,22 +67,27 @@ class CrossSection:
         # Parallel axis theorem: sum wh^3/12 + Ad^2
         self.i = sum(w * h ** 3 / 12 + w * h * (y + h / 2 - self.ybar) ** 2 for _, y, w, h in self.geometry)
     
-    def parse_rect(self, known_rects: Dict[str, Rect], rect: Union[str, Rect]) -> Rect:
+    def parse_rect(self, rect: Union[str, Rect]) -> Rect:
         """
         Parse a rect from the YAML into a proper Rect (list or tuple of [x, y, width, height]).
 
         If rect is already a tuple or a list, it will be returned directly.
-        If it's a string, then it will be interpreted with the following syntax:
+        If it's a string, then it will be interpreted as one of the two following syntaxes:
 
-        name[w=wstart:wstop, h=hstart:hstop]:newname
+        name:[x, y, width, height]
 
-        where name is the name of an existing rect in known_rects, wstart and wstop are the start and end of the
-        width-wise (horizontal) slice (relative to the x value of the rect), hstart and hstop are the start and end of
-        of the height-wise (vertical) slice (relative to the y value of the rect), and newname is an optional new name
-        to give to this rect, and if given, the new rect produced by the slice will be stored in known_rects.
+        where x, y, width, height are the rect location and dimensions, and name is the name given to the rect, or
+
+        cross_section:name[w=wstart:wstop, h=hstart:hstop]:newname
+
+        where cross_section is the optional name of another cross section, name is the name of the rect to slice,
+        wstart and wstop are the start and end of the width-wise (horizontal) slice (relative to the x value of the rect),
+        hstart and hstop are the start and end of the height-wise (vertical) slice (relative to the y value of the rect),
+        and newname is an optional new name to give to this rect.
 
         Both w and h type slices can be used together, or only one or none can be used. If wstart/wstop/hstart/hstop
-        are negative, they are to be interpreted as starting from the far edge (like how Python list slicing works).
+        begin with a star, they are to be interpreted as starting from the far edge (like how Python list slicing works
+        with negative indices).
         wstart and hstart can be omitted and default to 0. wstop and hstop can be omitted and default to the width
         and height of the rect to be sliced respectively.
         """
@@ -88,61 +96,81 @@ class CrossSection:
             return rect
         # Direct lookup if the rect is just a name
         if rect.isalnum():
-            return known_rects[rect]
+            return CrossSection.ALL_NAMED_RECTS[self.name][rect]
 
         try:
             # Find the opening and closing brace of the slice, and slice out the slice
             open_idx = rect.index("[")
             close_idx = rect.index("]")
-            rect_slice = rect[open_idx + 1:close_idx]
-            # Look up the rect name and make a copy to modify
-            new_rect = known_rects[rect[:open_idx]].copy()
-            for s in rect_slice.split(","):
-                s = s.strip()
-                slice_type, slice_range = s.split("=")
-                start, stop = slice_range.split(":")
-                # Convert start to a number, with default starting at 0
-                start = float(start) if start else 0
-                # Convert stop to a number, with default stopping at the full width/height
-                # since this number will vary, it's assigned later
-                stop = float(stop) if stop else None
-                # Width slice
-                if slice_type == "w":
-                    # Default for stop is the end of the rect
-                    if stop is None:
-                        stop = new_rect[2]
-                    # If start and stop are negative, make them wrap around by adding a full width to them
-                    if stop < 0:
-                        stop += new_rect[2]
-                    if start < 0:
-                        start += new_rect[2]
-                    # Shrink from the right first
-                    new_rect[2] = stop
-                    # Shrink from the left, shifting x to the right and reducing width
-                    new_rect[0] += start
-                    new_rect[2] -= start
-                elif slice_type == "h":
-                    # Same logic as above
-                    if stop is None:
-                        stop = new_rect[3]
-                    if stop < 0:
-                        stop += new_rect[3]
-                    if start < 0:
-                        start += new_rect[3]
-                    # Shrink from the top
-                    new_rect[3] = stop
-                    # Shrink from the bottom
-                    new_rect[1] += start
-                    new_rect[3] -= start
+            content = rect[open_idx + 1:close_idx]
+            rect_name = rect[:open_idx]
+            # Regular named rect syntax
+            if rect_name.endswith(":"):
+                rect_name = rect_name[:-1]
+                rect = [float(i) for i in content.split(",")]
+                CrossSection.ALL_NAMED_RECTS[self.name][rect_name] = rect
+                return rect
+            # Slice
+            else:
+                # Look up the rect name and make a copy to modify
+                if rect_name.isalnum():
+                    new_rect = CrossSection.ALL_NAMED_RECTS[self.name][rect_name].copy()
                 else:
-                    raise ValueError(f"Unknown slice type: {slice_type}")
-            # Find the tail where a new name is assigned to the new rect
-            tail = rect[close_idx + 2:]
-            if tail:
-                if not tail.isalnum():
-                    raise ValueError(f"Invalid name: {tail}")
-                known_rects[tail] = new_rect
-            return new_rect
+                    cs, r = rect_name.split(":")
+                    new_rect = CrossSection.ALL_NAMED_RECTS[cs][r].copy()
+                for s in content.split(","):
+                    s = s.strip()
+                    slice_type, slice_range = s.split("=")
+                    start, stop = slice_range.split(":")
+                    start_starred = start.startswith("*")
+                    if start_starred:
+                        start = start[1:]
+                    stop_starred = stop.startswith("*")
+                    if stop_starred:
+                        stop = stop[1:]
+                    
+                    # Convert start to a number, with default starting at 0
+                    start = float(start) if start else 0
+                    # Convert stop to a number, with default stopping at the full width/height
+                    # since this number will vary, it's assigned later
+                    stop = float(stop) if stop else None
+                    # Width slice
+                    if slice_type == "w":
+                        # Default for stop is the end of the rect
+                        if stop is None:
+                            stop = new_rect[2]
+                        # If start and stop are starred, make them relative to the end
+                        if start_starred:
+                            start += new_rect[2]
+                        if stop_starred:
+                            stop += new_rect[2]
+                        # Shrink from the right first
+                        new_rect[2] = stop
+                        # Shrink from the left, shifting x to the right and reducing width
+                        new_rect[0] += start
+                        new_rect[2] -= start
+                    elif slice_type == "h":
+                        # Same logic as above
+                        if stop is None:
+                            stop = new_rect[3]
+                        if start_starred:
+                            start += new_rect[3]
+                        if stop_starred:
+                            stop += new_rect[3]
+                        # Shrink from the top
+                        new_rect[3] = stop
+                        # Shrink from the bottom
+                        new_rect[1] += start
+                        new_rect[3] -= start
+                    else:
+                        raise ValueError(f"Unknown slice type: {slice_type}")
+                # Find the tail where a new name is assigned to the new rect
+                tail = rect[close_idx + 2:]
+                if tail:
+                    if not tail.isalnum():
+                        raise ValueError(f"Invalid name: {tail}")
+                    CrossSection.ALL_NAMED_RECTS[self.name][tail] = new_rect
+                return new_rect
         except (ValueError, IndexError) as e:
             raise ValueError(f"Invalid syntax: {rect}") from e
         except KeyError as e:
@@ -406,8 +434,7 @@ class Bridge:
         for d in values["bridge"]["crossSections"]:
             if "geometry" in d:
                 cs = CrossSection(d)
-                if "name" in d:
-                    named_cross_sections[d["name"]] = cs
+                named_cross_sections[d["name"]] = cs
             else:
                 if "name" in d:
                     cs = named_cross_sections[d["name"]]
