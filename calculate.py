@@ -120,6 +120,8 @@ class CrossSection:
                     new_rect = CrossSection.ALL_NAMED_RECTS[cs][r].copy()
                 for s in content.split(","):
                     s = s.strip()
+                    if not s:
+                        continue
                     slice_type, slice_range = s.split("=")
                     start, stop = slice_range.split(":")
                     start_starred = start.startswith("*")
