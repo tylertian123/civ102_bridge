@@ -15,8 +15,9 @@ def main_cli(ctx, bridge_yaml: TextIO):
 @click.option("--glue/--no-glue", "-g", default=False, help="Show glued components.")
 @click.option("--buckling/--no-buckling", "-b", default=False, help="Show local buckling types.")
 @click.option("--cross-section", "-c", type=int, default=None, help="Show this cross section only.")
+@click.option("--elevation/--no-elevation", "-e", default=False, help="Show elevation view.")
 @click.pass_context
-def geometry(ctx, visualize: bool, glue: bool, buckling: bool, cross_section: int):
+def geometry(ctx, visualize: bool, glue: bool, buckling: bool, cross_section: int, elevation: bool):
     """
     Visualize the bridge geometry and calculate cross-sectional properties.
     """
@@ -25,7 +26,7 @@ def geometry(ctx, visualize: bool, glue: bool, buckling: bool, cross_section: in
     for i, (start, stop, cs) in enumerate(bridge.cross_sections):
         if cross_section is not None and i + 1 != cross_section:
             continue
-        label = f"Cross section #{i + 1} (start: {start}, stop: {stop})"
+        label = f"Cross section '{cs.name}' (#{i + 1}, start: {start}, stop: {stop})"
         print(label)
         print(f"\tytop:\t{cs.ytop}mm\n\tybot:\t{cs.ybot}mm\n\tybar:\t{cs.ybar}mm\n\tA:\t{cs.area}mm^2\n\tI:\t{cs.i}mm^4")
         if visualize:
@@ -35,6 +36,11 @@ def geometry(ctx, visualize: bool, glue: bool, buckling: bool, cross_section: in
             plt.gcf().canvas.set_window_title(label)
             plt.gca().set_title(label)
             plt.show()
+    if elevation:
+        bridge.elevation_view(plt.gca())
+        plt.gcf().canvas.set_window_title("Elevation View")
+        plt.gca().set_title("Elevation View")
+        plt.show()
     # Estimate matboard area used
     area = bridge.matboard_area()
     print(f"Estimate of total matboard area used: {round(area)}mm^2 out of {bridge.max_area}mm^2 ({area / bridge.max_area * 100:.2f}%)")
