@@ -38,22 +38,29 @@ LocalBuckling = namedtuple("LocalBuckling", ("two_edge", "one_edge", "linear_str
 
 # A class to hold and compute properties of cross sections
 class CrossSection:
+    ALL_NAMED_RECTS = {} # type: Dict[str, Dict[str, Rect]]
+
     def __init__(self, values: Dict[str, Any]) -> None:
+        self.name = values["name"]
+        CrossSection.ALL_NAMED_RECTS[self.name] = {}
         # Geometry consists of a list of rectangles in the form of [x, y, width, height]
-        self.geometry = list(values["geometry"].values())
-        self.min_b_height = values["minBHeight"]
-        # For each item listed in the pieces, it could either be a rectangle or the name of another piece
-        rect_list = lambda l: [self.parse_rect(values["geometry"], rect) for rect in l]
+        self.geometry = [] # type: List[Rect]
+        for name, rect in values["geometry"].items():
+            r = self.parse_rect(rect)
+            self.geometry.append(r)
+            CrossSection.ALL_NAMED_RECTS[self.name][name] = r
+        self.min_b_height = values.get("minBHeight")
         # An array of glued components, with form (geom, b)
         # Where geom is a list of rectangles that make up the component and b is the glue area
-        self.glued_components = [(rect_list(c["pieces"]), c["glueArea"]) for c in values["gluedComponents"]]
+        self.glued_components = [([self.parse_rect(r) for r in c["pieces"]], c["glueArea"])
+            for c in values["gluedComponents"]]
         # Specifications of the scenarios for all the plate buckling modes
-        self.local_buckling = LocalBuckling(two_edge=rect_list(values["localBuckling"].get("twoEdge", [])),
-            one_edge=rect_list(values["localBuckling"].get("oneEdge", [])),
-            linear_stress=rect_list(values["localBuckling"].get("linearStress", [])),
+        self.local_buckling = LocalBuckling(two_edge=[self.parse_rect(r) for r in values["localBuckling"].get("twoEdge", [])],
+            one_edge=[self.parse_rect(r) for r in values["localBuckling"].get("oneEdge", [])],
+            linear_stress=[self.parse_rect(r) for r in values["localBuckling"].get("linearStress", [])],
             # Shear buckling is more complicated and consists of tuples of (rect, min_b_height)
             # This is because b might vary over the depth of the rect since b is calculated for the whole structure
-            shear=[(self.parse_rect(values["geometry"], d["piece"]), d["minBHeight"]) for d in values["localBuckling"].get("shear", [])])
+            shear=[(self.parse_rect(d["piece"]), d["minBHeight"]) for d in values["localBuckling"].get("shear", [])])
         self.diaphragm_distance = values.get("diaphragmDistance", math.inf)
 
         # Compute properties
@@ -64,7 +71,7 @@ class CrossSection:
         # Parallel axis theorem: sum wh^3/12 + Ad^2
         self.i = sum(w * h ** 3 / 12 + w * h * (y + h / 2 - self.ybar) ** 2 for _, y, w, h in self.geometry)
     
-    def parse_rect(self, known_rects: Dict[str, Rect], rect: Union[str, Rect]) -> Rect:
+    def parse_rect(self, rect: Union[str, Rect]) -> Rect:
         """
         Parse a rect from the YAML into a proper Rect (list or tuple of [x, y, width, height]).
 
@@ -89,15 +96,20 @@ class CrossSection:
             return rect
         # Direct lookup if the rect is just a name
         if rect.isalnum():
-            return known_rects[rect]
+            return CrossSection.ALL_NAMED_RECTS[self.name][rect]
 
         try:
             # Find the opening and closing brace of the slice, and slice out the slice
             open_idx = rect.index("[")
             close_idx = rect.index("]")
             rect_slice = rect[open_idx + 1:close_idx]
+            rect_name = rect[:open_idx]
             # Look up the rect name and make a copy to modify
-            new_rect = known_rects[rect[:open_idx]].copy()
+            if rect_name.isalnum():
+                new_rect = CrossSection.ALL_NAMED_RECTS[self.name][rect_name].copy()
+            else:
+                cs, r = rect_name.split(":")
+                new_rect = CrossSection.ALL_NAMED_RECTS[cs][r].copy()
             for s in rect_slice.split(","):
                 s = s.strip()
                 slice_type, slice_range = s.split("=")
@@ -149,7 +161,7 @@ class CrossSection:
             if tail:
                 if not tail.isalnum():
                     raise ValueError(f"Invalid name: {tail}")
-                known_rects[tail] = new_rect
+                CrossSection.ALL_NAMED_RECTS[self.name][tail] = new_rect
             return new_rect
         except (ValueError, IndexError) as e:
             raise ValueError(f"Invalid syntax: {rect}") from e
@@ -414,8 +426,7 @@ class Bridge:
         for d in values["bridge"]["crossSections"]:
             if "geometry" in d:
                 cs = CrossSection(d)
-                if "name" in d:
-                    named_cross_sections[d["name"]] = cs
+                named_cross_sections[d["name"]] = cs
             else:
                 if "name" in d:
                     cs = named_cross_sections[d["name"]]
