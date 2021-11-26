@@ -23,12 +23,12 @@ bridge: # Bridge properties
   crossSections:
     - name: left
       geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
-        top: [0, 123.73, 100, 1.27]
-        gluetab1: [11.27, 122.46, 10, 1.27]
-        gluetab2: [78.73, 122.46, 10, 1.27]
-        side1: [10, 0, 1.27, 123.73]
-        side2: [88.73, 0, 1.27, 123.73]
-        bottom: [11.27, 0, 77.46, 1.27]
+        - top:[0, 123.73, 100, 1.27]
+        - gluetab1:[11.27, 122.46, 10, 1.27]
+        - gluetab2:[78.73, 122.46, 10, 1.27]
+        - side1:[10, 0, 1.27, 123.73]
+        - side2:[88.73, 0, 1.27, 123.73]
+        - bottom:[11.27, 0, 77.46, 1.27]
       minBHeight: null # Height/depth that has the least width b; null if centroidal axis
       gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
         - pieces: # A list of names of pieces that make up this glued component; names are from geometry
@@ -36,30 +36,31 @@ bridge: # Bridge properties
           glueArea: 20 # Total area of glue (b)
       localBuckling: # Possible plate buckling modes for this cross section
         twoEdge: # Piece that could fail by plate buckling with both edges restrained
-          - top[w=10.635:-10.635] # Note: Slice an existing piece
-          - [10.635, 0, 78.73, 1.27]
+          - top[w=10.635:*-10.635] # Note: Slice an existing piece
+          - bottom[w=-0.635:*0.635]
         oneEdge: # Plate buckling with only one edge restrained
           - top[w=:10.635]
-          - top[w=-10.635:]
+          - top[w=*-10.635:]
         linearStress: # Plate buckling with both edges restrained and linearly varying stress
-          - side1[h=0.635:-0.635]:innerSide1 # Slicing an existing piece and assigning it to a new name
-          - side2[h=0.635:-0.635]:innerSide2
+          - side1[h=0.635:*-0.635]:innerSide1 # Slicing an existing piece and assigning it to a new name
+          - side2[h=0.635:*-0.635]:innerSide2
         shear: # Shear buckling
           - piece: innerSide1 # The plate that is susceptible to shear buckling
             minBHeight: null # (Global) height/depth with the least width b when restricted to this piece
       diaphragmDistance: .inf # Longest distance between diaphragms, used for shear buckling
       start: 0 # Where the cross section starts
       stop: 285 # Where the cross section ends; this bound is not inclusive
+
     - name: joint
       geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
-        top: [0, 123.73, 100, 1.27]
-        gluetab1: [12.54, 122.46, 10, 1.27]
-        gluetab2: [80, 122.46, 10, 1.27]
-        side1: [11.27, 0, 1.27, 123.73]
-        side2: [90, 0, 1.27, 123.73]
-        extension1: [10, 1.27, 1.27, 121.19]
-        extension2: [88.73, 1.27, 1.27, 121.19]
-        bottom: [12.54, 0, 77.46, 1.27]
+        - left:top[]:top
+        - left:gluetab1[w=1.27:*1.27]:gluetab1
+        - left:gluetab2[w=1.27:*1.27]:gluetab2
+        - left:side1[w=1.27:*1.27]:side1
+        - left:side2[w=1.27:*1.27]:side2
+        - left:bottom[w=1.27:*1.27]:bottom
+        - side1[w=-1.27:*-1.27, h=1.27:*-1.27]:extension1
+        - side2[w=-1.27:*-1.27, h=1.27:*-1.27]:extension2
       minBHeight: null # Height/depth that has the least width b; null if centroidal axis
       gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
         - pieces: # A list of names of pieces that make up this glued component; names are from geometry
@@ -73,29 +74,30 @@ bridge: # Bridge properties
           glueArea: 71.19
       localBuckling: # Possible plate buckling modes for this cross section
         twoEdge: # Piece that could fail by plate buckling with both edges restrained
-          - top[w=11.905:-10.635] # Note: Slice an existing piece
-          - [11.905, 0, 78.73, 1.27]
+          - top[w=11.905:*-10.635]
+          - bottom[w=-0.635:*-0.635]
         oneEdge: # Plate buckling with only one edge restrained
           - top[w=:11.905]
-          - top[w=-9.365:]
+          - top[w=*-9.365:]
         linearStress:
-          - [10, 1.27, 2.54, 121.19]
-          - [88.73, 1.27, 2.54, 121.19]
+          - extension1[w=:*1.27]:wall1
+          - extension2[w=:*1.27]:wall2
         shear:
-          - piece: [10, 1.27, 2.54, 121.19]
+          - piece: wall1
             minBHeight: null
       diaphragmDistance: .inf # Longest distance between diaphragms, used for shear buckling
       start: 285 # Where the cross section starts
       stop: 295 # Where the cross section ends; this bound is not inclusive
+
     - name: right
       geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
-        top: [0, 123.73, 100, 1.27]
-        gluetab1: [12.54, 122.46, 10, 1.27]
-        gluetab2: [80, 122.46, 10, 1.27]
-        topSupport: [22.54, 122.46, 57.46, 1.27]
-        side1: [11.27, 0, 1.27, 123.73]
-        side2: [90, 0, 1.27, 123.73]
-        bottom: [12.54, 0, 77.46, 1.27]
+        - joint:top[]:top
+        - joint:gluetab1[]:gluetab1
+        - joint:gluetab2[]:gluetab2
+        - joint:side1[]:side1
+        - joint:side2[]:side2
+        - joint:bottom[]:bottom
+        - gluetab1[w=*0:*57.46]:topSupport
       minBHeight: null # Height/depth that has the least width b; null if centroidal axis
       gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
         - pieces: # A list of names of pieces that make up this glued component; names are from geometry
@@ -106,14 +108,14 @@ bridge: # Bridge properties
           glueArea: 57.46
       localBuckling: # Possible plate buckling modes for this cross section
         twoEdge: # Piece that could fail by plate buckling with both edges restrained
-          - top[w=11.905:-9.365]
-          - [11.905, 0, 78.73, 1.27]
+          - top[w=11.905:*-9.365]
+          - bottom[w=-0.635:*0.635]
         oneEdge: # Plate buckling with only one edge restrained
           - top[w=:11.905]
-          - top[w=-9.365:]
+          - top[w=*-9.365:]
         linearStress: # Plate buckling with both edges restrained and linearly varying stress
-          - side1[h=0.635:-0.635]:innerSide1 # Slicing an existing piece and assigning it to a new name
-          - side2[h=0.635:-0.635]:innerSide2
+          - side1[h=0.635:*-0.635]:innerSide1 # Slicing an existing piece and assigning it to a new name
+          - side2[h=0.635:*-0.635]:innerSide2
         shear: # Shear buckling
           - piece: innerSide1 # The plate that is susceptible to shear buckling
             minBHeight: null # (Global) height/depth with the least width b when restricted to this piece
