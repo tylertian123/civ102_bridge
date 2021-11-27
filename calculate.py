@@ -86,6 +86,7 @@ class CrossSection:
         CrossSection.ALL_NAMED_RECTS[self.name] = {}
         # Geometry consists of a list of rectangles in the form of [x, y, width, height]
         self.geometry = [self.parse_rect(rect) for rect in values["geometry"]]
+        self.diaphragm_geometry = [self.parse_rect(rect) for rect in values.get("diaphragm", [])]
         self.min_b_height = values.get("minBHeight")
         # An array of glued components, with form (geom, b)
         # Where geom is a list of rectangles that make up the component and b is the glue area
@@ -539,6 +540,19 @@ class Bridge:
             for x, y, w, h in cs.geometry:
                 # Note: x points to the right, y points up, so z points out of the screen by the right hand rule
                 v, f = obj_cube(start - xcen, y - ycen, zcen - x - w, stop - start, h, w, len(vertices))
+                vertices.extend(v)
+                faces.extend(f)
+        # Generate diaphragms
+        for dx in self.diaphragms:
+            # Find the cross section it is located in
+            # Special case for the last diaphragm, which is always located at the full length and technically does not fall in any cross section
+            try:
+                cs = self.cross_sections[-1][2] if dx == self.length else \
+                    next(cs for start, stop, cs in self.cross_sections if start <= dx < stop)
+            except StopIteration as e:
+                raise ValueError(f"Diaphragm at {dx} not in any cross section!") from e
+            for x, y, w, h in cs.diaphragm_geometry:
+                v, f = obj_cube(dx - self.thickness / 2 - xcen, y - ycen, zcen - x - w, self.thickness, h, w, len(vertices))
                 vertices.extend(v)
                 faces.extend(f)
         return "\n".join(itertools.chain(vertices, faces))
