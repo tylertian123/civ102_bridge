@@ -38,6 +38,8 @@ bridge: # Bridge properties
         - side1:[10, 0, 1.27, 73.73]
         - side2:[88.73, 0, 1.27, 73.73]
         - bottom:[11.27, 0, 77.46, 1.27]
+      diaphragm:
+        - [10, 0, 80, 75]
       minBHeight: null # Height/depth that has the least width b; null if centroidal axis
       gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
         - pieces: # A list of names of pieces that make up this glued component; names are from geometry

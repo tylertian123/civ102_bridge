@@ -34,6 +34,43 @@ def floatleq(a: float, b: float) -> bool:
     return a < b or math.isclose(a, b, rel_tol=1e-7, abs_tol=1e-7)
 
 
+def obj_cube(x: float, y: float, z: float, w: float, h: float, l: float, start_v: int) -> Tuple[List[str], List[str]]:
+    """
+    Generate Wavefront OBJ for a cube.
+
+    Returns 2 lists, one containing the vertices, and the other containing the faces.
+    Each item is a string representing a line in the final file.
+    """
+    vertices = [
+        (x, y, z),
+        (x + w, y, z),
+        (x, y + h, z),
+        (x + w, y + h, z),
+        (x, y, z + l),
+        (x + w, y, z + l),
+        (x, y + h, z + l),
+        (x + w, y + h, z + l),
+    ]
+    faces = [
+        # Back and front
+        (3, 4, 2),
+        (2, 1, 3),
+        (7, 5, 6),
+        (6, 8, 7),
+        # Left and right
+        (7, 3, 1),
+        (1, 5, 7),
+        (2, 4, 8),
+        (8, 6, 2),
+        # Top and bottom
+        (4, 3, 7),
+        (7, 8, 4),
+        (2, 6, 5),
+        (5, 1, 2),
+    ]
+    return [f"v {x} {y} {z}" for x, y, z in vertices], [f"f {a + start_v} {b + start_v} {c + start_v}" for a, b, c in faces]
+
+
 LocalBuckling = namedtuple("LocalBuckling", ("two_edge", "one_edge", "linear_stress", "shear"))
 
 
@@ -49,6 +86,7 @@ class CrossSection:
         CrossSection.ALL_NAMED_RECTS[self.name] = {}
         # Geometry consists of a list of rectangles in the form of [x, y, width, height]
         self.geometry = [self.parse_rect(rect) for rect in values["geometry"]]
+        self.diaphragm_geometry = [self.parse_rect(rect) for rect in values.get("diaphragm", [])]
         self.min_b_height = values.get("minBHeight")
         # An array of glued components, with form (geom, b)
         # Where geom is a list of rectangles that make up the component and b is the glue area
@@ -482,6 +520,42 @@ class Bridge:
         ax.set_ylim(miny - 50, maxy + 50)
         ax.set_aspect("equal")
         ax.legend(loc="best")
+    
+    def export_obj(self) -> str:
+        """
+        Output a 3D model in obj format.
+        """
+        vertices = []
+        faces = []
+        # Centre the model by finding a centre x, y, and z offset
+        xcen = self.length / 2
+        ymax = max(cs.ytop for _, _, cs in self.cross_sections)
+        ymin = min(cs.ybot for _, _, cs in self.cross_sections)
+        ycen = (ymax - ymin) / 2 + ymin
+        zmax = max(max(x + w for x, _, w, _ in cs.geometry) for _, _, cs in self.cross_sections)
+        zmin = min(min(x for x, _, _, _ in cs.geometry) for _, _, cs in self.cross_sections)
+        zcen = (zmax - zmin) / 2 + zmin
+        # Generate all the cubes as specified in the cross sections
+        for start, stop, cs in self.cross_sections:
+            for x, y, w, h in cs.geometry:
+                # Note: x points to the right, y points up, so z points out of the screen by the right hand rule
+                v, f = obj_cube(start - xcen, y - ycen, zcen - x - w, stop - start, h, w, len(vertices))
+                vertices.extend(v)
+                faces.extend(f)
+        # Generate diaphragms
+        for dx in self.diaphragms:
+            # Find the cross section it is located in
+            # Special case for the last diaphragm, which is always located at the full length and technically does not fall in any cross section
+            try:
+                cs = self.cross_sections[-1][2] if dx == self.length else \
+                    next(cs for start, stop, cs in self.cross_sections if start <= dx < stop)
+            except StopIteration as e:
+                raise ValueError(f"Diaphragm at {dx} not in any cross section!") from e
+            for x, y, w, h in cs.diaphragm_geometry:
+                v, f = obj_cube(dx - self.thickness / 2 - xcen, y - ycen, zcen - x - w, self.thickness, h, w, len(vertices))
+                vertices.extend(v)
+                faces.extend(f)
+        return "\n".join(itertools.chain(vertices, faces))
 
     def load_train(self, dist: float) -> Forces:
         """
