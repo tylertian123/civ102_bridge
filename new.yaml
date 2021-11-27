@@ -40,8 +40,9 @@ bridge: # Bridge properties
     - 40
     - 560
     - 590
-    - 750
-    - 910
+    - 710
+    - 830
+    - 950
     - 1070
     - 1100
     - 1180
@@ -50,24 +51,20 @@ bridge: # Bridge properties
   crossSections:
     - name: left
       geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
-        - top:[0, 133.73, 100, 1.27]
-        - gluetab1:[11.27, 132.46, 10, 1.27]
-        - gluetab2:[78.73, 132.46, 10, 1.27]
-        - side1:[10, 0, 1.27, 133.73]
-        - side2:[88.73, 0, 1.27, 133.73]
+        - top:[0, 145, 100, 1.27]
+        - gluetab1:[11.27, 143.73, 5, 1.27]
+        - gluetab2:[83.73, 143.73, 5, 1.27]
+        - side1:[10, 0, 1.27, 145]
+        - side2:[88.73, 0, 1.27, 145]
         - bottom:[11.27, 0, 77.46, 1.27]
-        - gluetab1[w=*0:*57.46]:topSupport
       minBHeight: null # Height/depth that has the least width b; null if centroidal axis
       gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
         - pieces: # A list of names of pieces that make up this glued component; names are from geometry
           - top
-          glueArea: 20 # Total area of glue (b)
-        - pieces:
-          - topSupport
-          glueArea: 57.46
+          glueArea: 10 # Total area of glue (b)
       localBuckling: # Possible plate buckling modes for this cross section
         twoEdge: # Piece that could fail by plate buckling with both edges restrained
-          - top[w=10.635:*-10.635, h=-1.27:]
+          - top[w=10.635:*-10.635]
           - bottom[w=-0.635:*0.635]
         oneEdge: # Plate buckling with only one edge restrained
           - top[w=:10.635]
@@ -89,26 +86,22 @@ bridge: # Bridge properties
         - left:side1[w=1.27:*1.27]:side1
         - left:side2[w=1.27:*1.27]:side2
         - left:bottom[w=1.27:*1.27]:bottom
-        - left:topSupport[w=1.27:*1.27]:topSupport
         - side1[w=-1.27:*-1.27, h=1.27:*-1.27]:extension1
         - side2[w=-1.27:*-1.27, h=1.27:*-1.27]:extension2
       minBHeight: null # Height/depth that has the least width b; null if centroidal axis
       gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
         - pieces: # A list of names of pieces that make up this glued component; names are from geometry
           - top
-          glueArea: 22.54 # Total area of glue (b)
+          glueArea: 10
         - pieces:
           - extension1
           glueArea: 71.19
         - pieces:
           - extension2
           glueArea: 71.19
-        - pieces:
-          - topSupport
-          glueArea: 57.46
       localBuckling: # Possible plate buckling modes for this cross section
         twoEdge: # Piece that could fail by plate buckling with both edges restrained
-          - top[w=11.905:*-10.635, h=-1.27:]
+          - top[w=11.905:*-10.635]
           - bottom[w=-0.635:*-0.635]
         oneEdge: # Plate buckling with only one edge restrained
           - top[w=:11.905]
@@ -130,12 +123,12 @@ bridge: # Bridge properties
         - joint:side1[]:side1
         - joint:side2[]:side2
         - joint:bottom[]:bottom
-        - joint:topSupport[]:topSupport
+        - gluetab1[w=*0:*57.46]:topSupport
       minBHeight: null # Height/depth that has the least width b; null if centroidal axis
       gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
         - pieces: # A list of names of pieces that make up this glued component; names are from geometry
           - top
-          glueArea: 20 # Total area of glue (b)
+          glueArea: 10
         - pieces:
           - topSupport
           glueArea: 57.46
@@ -167,7 +160,7 @@ bridge: # Bridge properties
       gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
         - pieces: # A list of names of pieces that make up this glued component; names are from geometry
           - top
-          glueArea: 20 # Total area of glue (b)
+          glueArea: 10
       localBuckling: # Possible plate buckling modes for this cross section
         twoEdge: # Piece that could fail by plate buckling with both edges restrained
           - top[w=11.905:*-9.365]
@@ -197,7 +190,7 @@ bridge: # Bridge properties
       gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
         - pieces: # A list of names of pieces that make up this glued component; names are from geometry
           - top
-          glueArea: 20 # Total area of glue (b)
+          glueArea: 10
         - pieces:
           - bottomSupport
           glueArea: 77.46
@@ -215,9 +208,9 @@ bridge: # Bridge properties
           - piece: innerSide1 # The plate that is susceptible to shear buckling
             minBHeight: null # (Global) height/depth with the least width b when restricted to this piece
       start: 870 # Where the cross section starts
-      stop: 1210 # Where the cross section ends; this bound is not inclusive
+      stop: 1225 # Where the cross section ends; this bound is not inclusive
     
     - name: noreinforce
-      start: 1210
+      start: 1225
       stop: 1300
 
