@@ -20,6 +20,15 @@ bridge: # Bridge properties
   supports: # Location of the supports
     - 15
     - 1075
+  diaphragms:
+    - 0
+    - 30
+    - 550
+    - 580
+    - 1060
+    - 1090
+    - 1250
+    - 1280
   crossSections:
     - name: main
       geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
@@ -47,6 +56,5 @@ bridge: # Bridge properties
         shear: # Shear buckling
           - piece: innerSide1 # The plate that is susceptible to shear buckling
             minBHeight: null # (Global) height/depth with the least width b when restricted to this piece
-      diaphragmDistance: 520 # Longest distance between diaphragms, used for shear buckling
       start: 0 # Where the cross section starts
-      stop: 1281 # Where the cross section ends; this bound is not inclusive
+      stop: 1280 # Where the cross section ends; this bound is not inclusive

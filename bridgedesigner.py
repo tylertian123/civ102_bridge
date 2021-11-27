@@ -82,7 +82,7 @@ def load(ctx, load_type: str, load_amount: str, mfail: List[str], vfail: List[st
         bmd = bridge.make_bmd(sfd)
     
     # Set up and label plots
-    x = np.arange(0, bridge.length + 1)
+    x = np.arange(0, bridge.length)
     fig, (ax1, ax2) = plt.subplots(1, 2)
     fig.canvas.set_window_title("SFD and BMD")
     ax1.set_title("SFD")
@@ -159,7 +159,7 @@ def load(ctx, load_type: str, load_amount: str, mfail: List[str], vfail: List[st
     if load_type == "point":
         print("Failure P:", float(load_amount) * fos_moment)
     if load_amount != "max":
-        print("Midspan deflection:", bridge.calculate_deflection(bridge.make_curvature_diagram(bmd), bridge.length // 2))
+        print("Midspan deflection:", bridge.calculate_deflection(bridge.make_curvature_diagram(bmd), bridge.supports[0] + (bridge.supports[1] - bridge.supports[0]) // 2))
 
     ax1.legend(loc="upper right")
     ax2.legend(loc="upper right")
