@@ -16,19 +16,22 @@ def main_cli(ctx, bridge_yaml: TextIO):
 @click.option("--buckling/--no-buckling", "-b", default=False, help="Show local buckling types.")
 @click.option("--cross-section", "-c", type=int, default=None, help="Show this cross section only.")
 @click.option("--elevation/--no-elevation", "-e", default=False, help="Show elevation view.")
+@click.option("--export-obj", type=click.File("w", encoding="utf-8"), default=None, help="Export the bridge's 3d model to an obj file.")
 @click.pass_context
-def geometry(ctx, visualize: bool, glue: bool, buckling: bool, cross_section: int, elevation: bool):
+def geometry(ctx, visualize: bool, glue: bool, buckling: bool, cross_section: int, elevation: bool, export_obj: TextIO):
     """
     Visualize the bridge geometry and calculate cross-sectional properties.
     """
     bridge = ctx.obj # type: calculate.Bridge
+    if export_obj is not None:
+        export_obj.write(bridge.export_obj())
     # Analyze each cross section
     for i, (start, stop, cs) in enumerate(bridge.cross_sections):
         if cross_section is not None and i + 1 != cross_section:
             continue
         label = f"Cross section '{cs.name}' (#{i + 1}, start: {start}, stop: {stop})"
         print(label)
-        print(f"\tytop:\t{cs.ytop}mm\n\tybot:\t{cs.ybot}mm\n\tybar:\t{cs.ybar}mm\n\tA:\t{cs.area}mm^2\n\tI:\t{cs.i}mm^4")
+        print(f"\tytop:\t{cs.ytop}mm\n\tybot:\t{cs.ybot}mm\n\tybar:\t{cs.ybar}mm\n\tA:\t{cs.area}mm^2\n\tI:\t{cs.i}mm^4\n\tQ_cent:\t{cs.calculate_q(cs.ybar)}mm^3")
         if visualize:
             # Visualize the cross section on the global current axis
             cs.visualize(plt.gca(), show_glued_components=glue, show_local_buckling=buckling)
