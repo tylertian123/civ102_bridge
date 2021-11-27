@@ -106,11 +106,15 @@ def load(ctx, load_type: str, load_amount: str, mfail: List[str], vfail: List[st
     
     # Helper function; if match is in keys, then plot the upper and lower bound and print out its value
     def plot_fail(keys: List[str], match: Iterable[str], label: str, upper: np.ndarray, lower: np.ndarray):
-        if "all" in keys or any(m in keys for m in match):            
+        if "all" in keys or any(m in keys for m in match):
             print("Failure values for ", label, ":", sep="")
             for i, (start, stop, _) in enumerate(bridge.cross_sections):
-                # Find the value of the bounds somewhat arbitrarily by taking the value at the middle
-                print(f"\tCross section #{i + 1} (start: {start}, stop: {stop}):\t({lower[(start - stop) // 2]}, {upper[(start - stop) // 2]})")
+                # Find the value of the bounds
+                # In most cases, this does not make a difference since the upper and lower bounds will be the same for the entire cross section
+                # But some values such as shear buckling failure force might vary due to more complex situations
+                lb = np.max(lower[start:stop])
+                ub = np.min(upper[start:stop])
+                print(f"\tCross section #{i + 1} (start: {start}, stop: {stop}):\t({lb}, {ub})")
 
             # Choose the right axis, ax1 for shear and ax2 for bending moment
             ax = ax1 if keys is vfail else ax2

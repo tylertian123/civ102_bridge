@@ -730,11 +730,14 @@ class Bridge:
         Calculate the shear force Vfail that causes shear buckling.
         """
         vfail = []
-        # Index of the diaphragm that was just passed
-        di = 0
         # Need to iterate through both diaphragm distances and cross sections
         for start, stop, cs in self.cross_sections:
-            # Find the right diaphragm
+            # Find the right diaphragm; this runs in O(nk) and a better method definitely exists, but the numbers are small enough
+            # Index of the diaphragm that was just passed
+            di = 0
+            while self.diaphragms[di + 1] <= start:
+                di += 1
+            # Now go through all the diaphragms
             while self.diaphragms[di] < stop:
                 a = self.diaphragms[di + 1] - self.diaphragms[di]
                 l = min(self.diaphragms[di + 1], stop) - max(self.diaphragms[di], start)
