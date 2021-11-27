@@ -61,7 +61,6 @@ class CrossSection:
             # Shear buckling is more complicated and consists of tuples of (rect, min_b_height)
             # This is because b might vary over the depth of the rect since b is calculated for the whole structure
             shear=[(self.parse_rect(d["piece"]), d["minBHeight"]) for d in values["localBuckling"].get("shear", [])])
-        self.diaphragm_distance = values.get("diaphragmDistance", math.inf)
 
         # Compute properties
         self.ytop = max(y + h for _, y, _, h in self.geometry)
@@ -345,7 +344,7 @@ class CrossSection:
                 mfaill = min(mfaill, mfail)
         return mfailu, -mfaill
 
-    def calculate_buckling_vfail(self, e: float, nu: float) -> float:
+    def calculate_buckling_vfail(self, e: float, nu: float, a: float) -> float:
         """
         Calculate the shear force Vfail that would cause shear buckling.
         """
@@ -353,7 +352,7 @@ class CrossSection:
         for (_, y, w, h), min_b_height in self.local_buckling.shear:
             # tau = (5pi^2E)/(12(1 - nu^2))((t/h)^2 + (t/a)^2)
             # For a vertical plate, thickness t is just the width
-            tau = (5 * math.pi ** 2 * e) / (12 * (1 - nu ** 2)) * ((w / h) ** 2 + (w / self.diaphragm_distance) ** 2)
+            tau = (5 * math.pi ** 2 * e) / (12 * (1 - nu ** 2)) * ((w / h) ** 2 + (w / a) ** 2)
 
             # tau = VQ/Ib => V = tau*Ib/Q
             # Consider 2 depths: Where Q is maximized, and where b is minimized (minimize b/Q)
@@ -439,6 +438,8 @@ class Bridge:
         self.thickness = values["bridge"]["material"]["thickness"] # Thickness of matboard
         self.max_area = values["bridge"]["material"]["maxArea"] # Total area of matboard we have
 
+        self.diaphragms = values["bridge"]["diaphragms"]
+
         # Construct cross sections
         # Cross sections are tuples of (start, stop, cs) where cs is a CrossSection object
         self.cross_sections = [] # type: List[Tuple[int, int, CrossSection]]
@@ -520,7 +521,7 @@ class Bridge:
         """
         Compute the Shear Force Diagram from loads.
         """
-        shear = [0] * (self.length + 1) # One point per mm
+        shear = [0] * self.length # One point per mm
         # Accumulate point loads
         s = x = i = 0
         while x < len(shear):
@@ -573,8 +574,8 @@ class Bridge:
         Compute the maximum shear force at every point from all possible train locations.
         """
         # Upper and lower bound of shear force
-        upper = np.zeros((self.length + 1,))
-        lower = np.zeros((self.length + 1,))
+        upper = np.zeros((self.length,))
+        lower = np.zeros((self.length,))
 
         # Case 1: Full train is loaded exactly in between the two supports
         train_len = self.train_wheel_edge_distance * 6 + self.train_wheel_distance * 3 + self.train_car_distance * 2
@@ -596,8 +597,8 @@ class Bridge:
         Compute the maximum bending moment at every point from all possible train locations.
         """
         # Same logic as above
-        upper = np.zeros((self.length + 1,))
-        lower = np.zeros((self.length + 1,))
+        upper = np.zeros((self.length,))
+        lower = np.zeros((self.length,))
         # Case 1: Full train is loaded exactly in between the two supports
         train_len = self.train_wheel_edge_distance * 6 + self.train_wheel_distance * 3 + self.train_car_distance * 2
         case1 = self.supports[1] - (self.supports[1] - self.supports[0] - train_len) / 2
@@ -729,8 +730,16 @@ class Bridge:
         Calculate the shear force Vfail that causes shear buckling.
         """
         vfail = []
+        # Index of the diaphragm that was just passed
+        di = 0
+        # Need to iterate through both diaphragm distances and cross sections
         for start, stop, cs in self.cross_sections:
-            vfail.extend([cs.calculate_buckling_vfail(self.e, self.nu)] * (stop - start))
+            # Find the right diaphragm
+            while self.diaphragms[di] < stop:
+                a = self.diaphragms[di + 1] - self.diaphragms[di]
+                l = min(self.diaphragms[di + 1], stop) - max(self.diaphragms[di], start)
+                vfail.extend([cs.calculate_buckling_vfail(self.e, self.nu, a)] * l)
+                di += 1
         return np.array(vfail)
     
     def calculate_shear_fos(self, sfd: np.ndarray, fail_shear: List[np.ndarray]) -> float:
