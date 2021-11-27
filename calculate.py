@@ -568,19 +568,21 @@ class Bridge:
             phi.append(bmd[x] / (self.e * cs[2].i))
         return np.array(phi)
     
-    def max_sfd_train(self, step: Optional[int] = 4) -> Tuple[np.ndarray, np.ndarray]:
+    def max_sfd_train(self, step: Optional[int] = 2) -> Tuple[np.ndarray, np.ndarray]:
         """
         Compute the maximum shear force at every point from all possible train locations.
         """
         # Upper and lower bound of shear force
         upper = np.zeros((self.length + 1,))
         lower = np.zeros((self.length + 1,))
-        # Sample locations from the front of the train being at the left end of the bridge,
-        # to when the front of the train is at the length of the bridge plus the length of the train
-        lend = self.train_wheel_edge_distance
-        rend = self.length + 4 * self.train_wheel_edge_distance + 3 * self.train_wheel_distance + 2 * self.train_car_distance
+
+        # Case 1: Full train is loaded exactly in between the two supports
+        train_len = self.train_wheel_edge_distance * 6 + self.train_wheel_distance * 3 + self.train_car_distance * 2
+        case1 = self.supports[1] - (self.supports[1] - self.supports[0] - train_len) / 2
+        # Case 2: The far right side of the train is against the far right side of the bridge
+        case2 = self.length
         # Create and loop through locations
-        locations = np.arange(lend, rend + 1, step)
+        locations = np.arange(case1, case2 + 1, step)
         for location in locations:
             # Make the sfd for this loading location
             sfd = self.make_sfd(self.reaction_forces(self.load_train(location)))
@@ -589,16 +591,19 @@ class Bridge:
             lower = np.minimum(lower, sfd)
         return upper, lower
     
-    def max_bmd_train(self, step: Optional[int] = 4) -> Tuple[np.ndarray, np.ndarray]:
+    def max_bmd_train(self, step: Optional[int] = 2) -> Tuple[np.ndarray, np.ndarray]:
         """
         Compute the maximum bending moment at every point from all possible train locations.
         """
         # Same logic as above
         upper = np.zeros((self.length + 1,))
         lower = np.zeros((self.length + 1,))
-        lend = self.train_wheel_edge_distance
-        rend = self.length + 4 * self.train_wheel_edge_distance + 3 * self.train_wheel_distance + 2 * self.train_car_distance
-        locations = np.arange(lend, rend + 1, step)
+        # Case 1: Full train is loaded exactly in between the two supports
+        train_len = self.train_wheel_edge_distance * 6 + self.train_wheel_distance * 3 + self.train_car_distance * 2
+        case1 = self.supports[1] - (self.supports[1] - self.supports[0] - train_len) / 2
+        # Case 2: The far right side of the train is against the far right side of the bridge
+        case2 = self.length
+        locations = np.arange(case1, case2 + 1, step)
         for location in locations:
             bmd = self.make_bmd(self.make_sfd(self.reaction_forces(self.load_train(location))))
             upper = np.maximum(upper, bmd)
