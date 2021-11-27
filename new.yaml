@@ -19,7 +19,7 @@ loading: # Loading conditions
     wheelDistance: 176 # Distance between two wheels on the same carriage
     wheelEdgeDistance: 52 # Distance between the wheel and the edge of the train
     carDistance: 60 # Distance between the edges of two carriages
-  points: [565, 1265] # Location of the two point loads, relative to the left end of the bridge
+  points: [575, 1275] # Location of the two point loads, relative to the left end of the bridge
 
 bridge: # Bridge properties
   material: # Material properties
@@ -40,18 +40,21 @@ bridge: # Bridge properties
     - 40
     - 560
     - 590
+    - 750
+    - 910
     - 1070
     - 1100
+    - 1180
     - 1260
     - 1290
   crossSections:
     - name: left
       geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
-        - top:[0, 98.73, 100, 1.27]
-        - gluetab1:[11.27, 97.46, 10, 1.27]
-        - gluetab2:[78.73, 97.46, 10, 1.27]
-        - side1:[10, 0, 1.27, 98.73]
-        - side2:[88.73, 0, 1.27, 98.73]
+        - top:[0, 133.73, 100, 1.27]
+        - gluetab1:[11.27, 132.46, 10, 1.27]
+        - gluetab2:[78.73, 132.46, 10, 1.27]
+        - side1:[10, 0, 1.27, 133.73]
+        - side2:[88.73, 0, 1.27, 133.73]
         - bottom:[11.27, 0, 77.46, 1.27]
         - gluetab1[w=*0:*57.46]:topSupport
       minBHeight: null # Height/depth that has the least width b; null if centroidal axis
@@ -150,7 +153,7 @@ bridge: # Bridge properties
           - piece: innerSide1 # The plate that is susceptible to shear buckling
             minBHeight: null # (Global) height/depth with the least width b when restricted to this piece
       start: 294 # Where the cross section starts
-      stop: 813 # Where the cross section ends; this bound is not inclusive
+      stop: 825 # Where the cross section ends; this bound is not inclusive
     
     - name: noreinforce
       geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
@@ -178,8 +181,8 @@ bridge: # Bridge properties
         shear: # Shear buckling
           - piece: innerSide1 # The plate that is susceptible to shear buckling
             minBHeight: null # (Global) height/depth with the least width b when restricted to this piece
-      start: 813 # Where the cross section starts
-      stop: 949 # Where the cross section ends; this bound is not inclusive
+      start: 825 # Where the cross section starts
+      stop: 870 # Where the cross section ends; this bound is not inclusive
     
     - name: bottomreinforce
       geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
@@ -189,7 +192,7 @@ bridge: # Bridge properties
         - joint:side1[]:side1
         - joint:side2[]:side2
         - joint:bottom[]:bottom
-        - bottom[h=1.27:*1.27]:bottomSupport
+        - bottom[h=-1.27:*-1.27, w=-1.27:*1.27]:bottomSupport
       minBHeight: null # Height/depth that has the least width b; null if centroidal axis
       gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
         - pieces: # A list of names of pieces that make up this glued component; names are from geometry
@@ -201,7 +204,7 @@ bridge: # Bridge properties
       localBuckling: # Possible plate buckling modes for this cross section
         twoEdge: # Piece that could fail by plate buckling with both edges restrained
           - top[w=11.905:*-9.365]
-          - bottom[w=-0.635:*0.635,h=:*1.27]
+          - bottom[w=-0.635:*0.635, h=-1.27:]
         oneEdge: # Plate buckling with only one edge restrained
           - top[w=:11.905]
           - top[w=*-9.365:]
@@ -211,10 +214,10 @@ bridge: # Bridge properties
         shear: # Shear buckling
           - piece: innerSide1 # The plate that is susceptible to shear buckling
             minBHeight: null # (Global) height/depth with the least width b when restricted to this piece
-      start: 949 # Where the cross section starts
-      stop: 1180 # Where the cross section ends; this bound is not inclusive
+      start: 870 # Where the cross section starts
+      stop: 1210 # Where the cross section ends; this bound is not inclusive
     
     - name: noreinforce
-      start: 1180
+      start: 1210
       stop: 1300
 

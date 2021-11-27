@@ -484,6 +484,9 @@ class Bridge:
         named_cross_sections = {}
         # Handle named cross section lookup
         for d in values["bridge"]["crossSections"]:
+            if "start" not in d or "stop" not in d or d["start"] == d["stop"]:
+                print(f"Warning: Ignoring zero-length cross section '{d['name']}'.")
+                continue
             if "geometry" in d:
                 cs = CrossSection(d)
                 named_cross_sections[d["name"]] = cs
