@@ -38,7 +38,7 @@ bridge: # Bridge properties
   diaphragms:
     - 10
     - 40
-    #- 300
+    - 300
     - 560
     - 590
     - 710
@@ -66,18 +66,60 @@ bridge: # Bridge properties
           glueArea: 5 # Total area of glue (b)
       localBuckling: # Possible plate buckling modes for this cross section
         twoEdge: # Piece that could fail by plate buckling with both edges restrained
-          - top[w=10.635:*-10.635]
+          - top[w=10.635:*-10.635]:tetop
         oneEdge: # Plate buckling with only one edge restrained
-          - top[w=:10.635]
-          - top[w=*-10.635:]
+          - top[w=:10.635]:oetopleft
+          - top[w=*-10.635:]:oetopright
         linearStress: # Plate buckling with both edges restrained and linearly varying stress
-          - side1[h=0.635:*-0.635]:innerSide1 # Slicing an existing piece and assigning it to a new name
-          - side2[h=0.635:*-0.635]:innerSide2
+          - side1[h=:*-0.635]:innerSide1 # Slicing an existing piece and assigning it to a new name
+          - side2[h=:*-0.635]:innerSide2
         shear: # Shear buckling
           - piece: innerSide1 # The plate that is susceptible to shear buckling
             minBHeight: null # (Global) height/depth with the least width b when restricted to this piece
       start: 0 # Where the cross section starts
-      stop: 250 # Where the cross section ends; this bound is not inclusive
+      stop: 9 # Where the cross section ends; this bound is not inclusive
+
+    - name: leftsupport
+      geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
+        - left:top[]:top
+        - left:gluetab1[]:gluetab1
+        - left:gluetab2[]:gluetab2
+        - left:side1[]:side1
+        - left:side2[]:side2
+        - side1[w=:80, h=-1.27:0]:bottom
+        - side1[w=-1.27:0, h=-1.27:5]:bottomgluetab1
+        - side2[w=1.27:*1.27, h=-1.27:5]:bottomgluetab2
+      diaphragm:
+        - left:diaphragm[]:diaphragm
+      minBHeight: null # Height/depth that has the least width b; null if centroidal axis
+      gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
+        - pieces: # A list of names of pieces that make up this glued component; names are from geometry
+          - top
+          glueArea: 5 # Total area of glue (b)
+        - pieces:
+          - bottom
+          - bottomgluetab1
+          - bottomgluetab2
+          glueArea: 10
+      localBuckling: # Possible plate buckling modes for this cross section
+        twoEdge: # Piece that could fail by plate buckling with both edges restrained
+          - left:tetop
+          - bottom[w=0.635:*-0.635]
+        oneEdge: # Plate buckling with only one edge restrained
+          - left:oetopleft
+          - left:oetopright
+        linearStress: # Plate buckling with both edges restrained and linearly varying stress
+          - left:innerSide1 # Slicing an existing piece and assigning it to a new name
+          - left:innerSide2
+        shear: # Shear buckling
+          - piece: left:innerSide1 # The plate that is susceptible to shear buckling
+            minBHeight: null # (Global) height/depth with the least width b when restricted to this piece
+      start: 9 # Where the cross section starts
+      stop: 41 # Where the cross section ends; this bound is not inclusive
+
+    - name: left
+      start: 41
+      stop: 250
 
     - name: lefttopreinforced
       geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
@@ -101,8 +143,8 @@ bridge: # Bridge properties
           - top[w=:10.635]
           - top[w=*-10.635:]
         linearStress: # Plate buckling with both edges restrained and linearly varying stress
-          - side1[h=0.635:*-0.635]:innerSide1 # Slicing an existing piece and assigning it to a new name
-          - side2[h=0.635:*-0.635]:innerSide2
+          - side1[h=:*-0.635]:innerSide1 # Slicing an existing piece and assigning it to a new name
+          - side2[h=:*-0.635]:innerSide2
         shear: # Shear buckling
           - piece: innerSide1 # The plate that is susceptible to shear buckling
             minBHeight: null # (Global) height/depth with the least width b when restricted to this piece
@@ -175,8 +217,8 @@ bridge: # Bridge properties
           - top[w=:11.905]
           - top[w=*-9.365:]
         linearStress: # Plate buckling with both edges restrained and linearly varying stress
-          - side1[h=0.635:*-0.635]:innerSide1 # Slicing an existing piece and assigning it to a new name
-          - side2[h=0.635:*-0.635]:innerSide2
+          - side1[h=:*-0.635]:innerSide1 # Slicing an existing piece and assigning it to a new name
+          - side2[h=:*-0.635]:innerSide2
         shear: # Shear buckling
           - piece: innerSide1 # The plate that is susceptible to shear buckling
             minBHeight: null # (Global) height/depth with the least width b when restricted to this piece
@@ -205,8 +247,8 @@ bridge: # Bridge properties
           - top[w=*-9.365:]
           - side2[h=:92.580374]
         linearStress: # Plate buckling with both edges restrained and linearly varying stress
-          - side1[h=0.635:*-0.635]:innerSide1 # Slicing an existing piece and assigning it to a new name
-          - side2[h=0.635:*-0.635]:innerSide2
+          - side1[h=:*-0.635]:innerSide1 # Slicing an existing piece and assigning it to a new name
+          - side2[h=:*-0.635]:innerSide2
         shear: # Shear buckling
           - piece: innerSide1 # The plate that is susceptible to shear buckling
             minBHeight: null # (Global) height/depth with the least width b when restricted to this piece

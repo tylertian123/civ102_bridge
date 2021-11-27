@@ -138,6 +138,11 @@ class CrossSection:
         # Direct lookup if the rect is just a name
         if rect.isalnum():
             return CrossSection.ALL_NAMED_RECTS[self.name][rect]
+        try:
+            cs_name, rect_name = rect.split(":")
+            return CrossSection.ALL_NAMED_RECTS[cs_name][rect_name]
+        except (ValueError, KeyError):
+            pass
 
         try:
             # Find the opening and closing brace of the slice, and slice out the slice
