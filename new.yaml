@@ -20,6 +20,9 @@ bridge: # Bridge properties
   supports: # Location of the supports
     - 25
     - 1085
+  diaphragms:
+    - 0
+    - 1300
   crossSections:
     - name: left
       geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
@@ -47,9 +50,8 @@ bridge: # Bridge properties
         shear: # Shear buckling
           - piece: innerSide1 # The plate that is susceptible to shear buckling
             minBHeight: null # (Global) height/depth with the least width b when restricted to this piece
-      diaphragmDistance: .inf # Longest distance between diaphragms, used for shear buckling
       start: 0 # Where the cross section starts
-      stop: 285 # Where the cross section ends; this bound is not inclusive
+      stop: 284 # Where the cross section ends; this bound is not inclusive
 
     - name: joint
       geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
@@ -85,9 +87,8 @@ bridge: # Bridge properties
         shear:
           - piece: wall1
             minBHeight: null
-      diaphragmDistance: .inf # Longest distance between diaphragms, used for shear buckling
-      start: 285 # Where the cross section starts
-      stop: 295 # Where the cross section ends; this bound is not inclusive
+      start: 284 # Where the cross section starts
+      stop: 294 # Where the cross section ends; this bound is not inclusive
 
     - name: right
       geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
@@ -119,6 +120,5 @@ bridge: # Bridge properties
         shear: # Shear buckling
           - piece: innerSide1 # The plate that is susceptible to shear buckling
             minBHeight: null # (Global) height/depth with the least width b when restricted to this piece
-      diaphragmDistance: .inf # Longest distance between diaphragms, used for shear buckling
-      start: 295 # Where the cross section starts
-      stop: 1301 # Where the cross section ends; this bound is not inclusive
+      start: 294 # Where the cross section starts
+      stop: 1300 # Where the cross section ends; this bound is not inclusive
