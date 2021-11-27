@@ -1,3 +1,18 @@
+# A note on rect syntax: Cross sections are made of rectangles, which are parsed according to the following syntax rules:
+# Basic syntax: [<x>, <y>, <width>, <height>]
+#   Specify the bottom left corner of the rectangle and its width and height
+# Named syntax: <name>:[<x>, <y>, <width>, <height>]
+#   Same as above, but now the rect will be given a name, which can be referenced later; note the colon
+# Slice syntax: <cross_section>:<name>[w=<start>:<stop>, h=<start>:<stop>]:<newname>
+#   Slice (change the size or move) an existing rect and optionally give it a new name (newname)
+#   cross_section is optional and specifies the cross section that name belongs to
+#   name is the name of another rect, used as the base of the slice (required)
+#   In the [], w and h can be used in any order (or even not at all); w specifies a widthwise slice, and h specifies a heightwise slice
+#   start and stop are where to begin and end the slice; by default they are relative to the left/bottom of the rect,
+#   but you can use a star (e.g. *123) to make it relative to the right/top of the rect; negative numbers are accepted
+#   Both start and stop are optional, and default to 0 and the width/height of the rect respectively if omitted;
+#   however, the colon is required (e.g. my_cs:my_name[w=:]:my_new_name is a valid slice)
+
 loading: # Loading conditions
   train:
     totalWeight: 400 # Total weight of all 3 carriages
@@ -21,25 +36,35 @@ bridge: # Bridge properties
     - 25
     - 1085
   diaphragms:
-    - 0
-    - 1300
+    - 10
+    - 40
+    - 560
+    - 590
+    - 1070
+    - 1100
+    - 1260
+    - 1290
   crossSections:
     - name: left
       geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
-        - top:[0, 123.73, 100, 1.27]
-        - gluetab1:[11.27, 122.46, 10, 1.27]
-        - gluetab2:[78.73, 122.46, 10, 1.27]
-        - side1:[10, 0, 1.27, 123.73]
-        - side2:[88.73, 0, 1.27, 123.73]
+        - top:[0, 98.73, 100, 1.27]
+        - gluetab1:[11.27, 97.46, 10, 1.27]
+        - gluetab2:[78.73, 97.46, 10, 1.27]
+        - side1:[10, 0, 1.27, 98.73]
+        - side2:[88.73, 0, 1.27, 98.73]
         - bottom:[11.27, 0, 77.46, 1.27]
+        - gluetab1[w=*0:*57.46]:topSupport
       minBHeight: null # Height/depth that has the least width b; null if centroidal axis
       gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
         - pieces: # A list of names of pieces that make up this glued component; names are from geometry
           - top
           glueArea: 20 # Total area of glue (b)
+        - pieces:
+          - topSupport
+          glueArea: 57.46
       localBuckling: # Possible plate buckling modes for this cross section
         twoEdge: # Piece that could fail by plate buckling with both edges restrained
-          - top[w=10.635:*-10.635] # Note: Slice an existing piece
+          - top[w=10.635:*-10.635, h=-1.27:]
           - bottom[w=-0.635:*0.635]
         oneEdge: # Plate buckling with only one edge restrained
           - top[w=:10.635]
@@ -61,6 +86,7 @@ bridge: # Bridge properties
         - left:side1[w=1.27:*1.27]:side1
         - left:side2[w=1.27:*1.27]:side2
         - left:bottom[w=1.27:*1.27]:bottom
+        - left:topSupport[w=1.27:*1.27]:topSupport
         - side1[w=-1.27:*-1.27, h=1.27:*-1.27]:extension1
         - side2[w=-1.27:*-1.27, h=1.27:*-1.27]:extension2
       minBHeight: null # Height/depth that has the least width b; null if centroidal axis
@@ -74,9 +100,12 @@ bridge: # Bridge properties
         - pieces:
           - extension2
           glueArea: 71.19
+        - pieces:
+          - topSupport
+          glueArea: 57.46
       localBuckling: # Possible plate buckling modes for this cross section
         twoEdge: # Piece that could fail by plate buckling with both edges restrained
-          - top[w=11.905:*-10.635]
+          - top[w=11.905:*-10.635, h=-1.27:]
           - bottom[w=-0.635:*-0.635]
         oneEdge: # Plate buckling with only one edge restrained
           - top[w=:11.905]
@@ -98,7 +127,7 @@ bridge: # Bridge properties
         - joint:side1[]:side1
         - joint:side2[]:side2
         - joint:bottom[]:bottom
-        - gluetab1[w=*0:*57.46]:topSupport
+        - joint:topSupport[]:topSupport
       minBHeight: null # Height/depth that has the least width b; null if centroidal axis
       gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
         - pieces: # A list of names of pieces that make up this glued component; names are from geometry
@@ -109,7 +138,7 @@ bridge: # Bridge properties
           glueArea: 57.46
       localBuckling: # Possible plate buckling modes for this cross section
         twoEdge: # Piece that could fail by plate buckling with both edges restrained
-          - top[w=11.905:*-9.365]
+          - top[w=11.905:*-9.365, h=-1.27:]
           - bottom[w=-0.635:*0.635]
         oneEdge: # Plate buckling with only one edge restrained
           - top[w=:11.905]
