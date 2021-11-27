@@ -38,6 +38,7 @@ bridge: # Bridge properties
   diaphragms:
     - 10
     - 40
+    #- 300
     - 560
     - 590
     - 710
