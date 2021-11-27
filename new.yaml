@@ -57,6 +57,8 @@ bridge: # Bridge properties
         - side1:[10, 0, 1.27, 145]
         - side2:[88.73, 0, 1.27, 145]
         - bottom:[11.27, 0, 77.46, 1.27]
+      diaphragm:
+        - diaphragm:[11.27, 1.27, 77.46, 142.46]
       minBHeight: null # Height/depth that has the least width b; null if centroidal axis
       gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
         - pieces: # A list of names of pieces that make up this glued component; names are from geometry
@@ -88,6 +90,8 @@ bridge: # Bridge properties
         - left:bottom[w=1.27:*1.27]:bottom
         - side1[w=-1.27:*-1.27, h=1.27:*-1.27]:extension1
         - side2[w=-1.27:*-1.27, h=1.27:*-1.27]:extension2
+      diaphragm:
+        - left:diaphragm[w=1.27:]:diaphragm
       minBHeight: null # Height/depth that has the least width b; null if centroidal axis
       gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
         - pieces: # A list of names of pieces that make up this glued component; names are from geometry
@@ -124,6 +128,8 @@ bridge: # Bridge properties
         - joint:side2[]:side2
         - joint:bottom[]:bottom
         - gluetab1[w=*0:*57.46]:topSupport
+      diaphragm:
+        - left:diaphragm[w=1.27:*1.27]:diaphragm
       minBHeight: null # Height/depth that has the least width b; null if centroidal axis
       gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
         - pieces: # A list of names of pieces that make up this glued component; names are from geometry
@@ -156,6 +162,8 @@ bridge: # Bridge properties
         - joint:side1[]:side1
         - joint:side2[]:side2
         - joint:bottom[]:bottom
+      diaphragm:
+        - mid:diaphragm[]:diaphragm
       minBHeight: null # Height/depth that has the least width b; null if centroidal axis
       gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
         - pieces: # A list of names of pieces that make up this glued component; names are from geometry
@@ -186,6 +194,8 @@ bridge: # Bridge properties
         - joint:side2[]:side2
         - joint:bottom[]:bottom
         - bottom[h=-1.27:*-1.27, w=-1.27:*1.27]:bottomSupport
+      diaphragm:
+        - mid:diaphragm[]:diaphragm
       minBHeight: null # Height/depth that has the least width b; null if centroidal axis
       gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
         - pieces: # A list of names of pieces that make up this glued component; names are from geometry

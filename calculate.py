@@ -881,4 +881,15 @@ class Bridge:
         """
         # Get an estimate by considering the area of each cross section and the length of that cross section
         # and then dividing the volume by the thickness
-        return sum(cs.area * (stop - start) for start, stop, cs in self.cross_sections) / self.thickness
+        body_area = sum(cs.area * (stop - start) for start, stop, cs in self.cross_sections) / self.thickness
+        for dx in self.diaphragms:
+            # Find the cross section it is located in
+            # Special case for the last diaphragm, which is always located at the full length and technically does not fall in any cross section
+            try:
+                cs = self.cross_sections[-1][2] if dx == self.length else \
+                    next(cs for start, stop, cs in self.cross_sections if start <= dx < stop)
+            except StopIteration as e:
+                raise ValueError(f"Diaphragm at {dx} not in any cross section!") from e
+            for x, y, w, h in cs.diaphragm_geometry:
+                body_area += w * h
+        return body_area
