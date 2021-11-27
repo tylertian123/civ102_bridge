@@ -476,7 +476,7 @@ class Bridge:
         self.thickness = values["bridge"]["material"]["thickness"] # Thickness of matboard
         self.max_area = values["bridge"]["material"]["maxArea"] # Total area of matboard we have
 
-        self.diaphragms = values["bridge"]["diaphragms"]
+        self.diaphragms = sorted(values["bridge"]["diaphragms"])
 
         # Construct cross sections
         # Cross sections are tuples of (start, stop, cs) where cs is a CrossSection object
@@ -806,17 +806,18 @@ class Bridge:
         vfail = []
         # Need to iterate through both diaphragm distances and cross sections
         for start, stop, cs in self.cross_sections:
-            # Find the right diaphragm; this runs in O(nk) and a better method definitely exists, but the numbers are small enough
-            # Index of the diaphragm that was just passed
-            di = 0
-            while self.diaphragms[di + 1] <= start:
-                di += 1
-            # Now go through all the diaphragms
-            while self.diaphragms[di] < stop:
-                a = self.diaphragms[di + 1] - self.diaphragms[di]
-                l = min(self.diaphragms[di + 1], stop) - max(self.diaphragms[di], start)
-                vfail.extend([cs.calculate_buckling_vfail(self.e, self.nu, a)] * l)
-                di += 1
+            for i, dx in enumerate(self.diaphragms):
+                dd = dx - self.diaphragms[i - 1] if i != 0 else math.inf
+                if i != 0 and self.diaphragms[i - 1] >= stop:
+                    break
+                if dx > start:
+                    l = min(dx, stop) - max(self.diaphragms[i - 1] if i != 0 else 0, start)
+                    vfail.extend([cs.calculate_buckling_vfail(self.e, self.nu, dd)] * l)
+            # Special case of the last diaphragm
+            if self.diaphragms[-1] < stop:
+                dd = math.inf
+                l = stop - max(self.diaphragms[-1], start)
+                vfail.extend([cs.calculate_buckling_vfail(self.e, self.nu, dd)] * l)
         return np.array(vfail)
     
     def calculate_shear_fos(self, sfd: np.ndarray, fail_shear: List[np.ndarray]) -> float:
