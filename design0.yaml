@@ -1,5 +1,20 @@
+# A note on rect syntax: Cross sections are made of rectangles, which are parsed according to the following syntax rules:
+# Basic syntax: [<x>, <y>, <width>, <height>]
+#   Specify the bottom left corner of the rectangle and its width and height
+# Named syntax: <name>:[<x>, <y>, <width>, <height>]
+#   Same as above, but now the rect will be given a name, which can be referenced later; note the colon
+# Slice syntax: <cross_section>:<name>[w=<start>:<stop>, h=<start>:<stop>]:<newname>
+#   Slice (change the size or move) an existing rect and optionally give it a new name (newname)
+#   cross_section is optional and specifies the cross section that name belongs to
+#   name is the name of another rect, used as the base of the slice (required)
+#   In the [], w and h can be used in any order (or even not at all); w specifies a widthwise slice, and h specifies a heightwise slice
+#   start and stop are where to begin and end the slice; by default they are relative to the left/bottom of the rect,
+#   but you can use a star (e.g. *123) to make it relative to the right/top of the rect; negative numbers are accepted
+#   Both start and stop are optional, and default to 0 and the width/height of the rect respectively if omitted;
+#   however, the colon is required (e.g. my_cs:my_name[w=:]:my_new_name is a valid slice)
+
 loading: # Loading conditions
-  train:
+  train: # Train loading
     totalWeight: 400 # Total weight of all 3 carriages
     wheelDistance: 176 # Distance between two wheels on the same carriage
     wheelEdgeDistance: 52 # Distance between the wheel and the edge of the train
@@ -8,19 +23,19 @@ loading: # Loading conditions
 
 bridge: # Bridge properties
   material: # Material properties
-    sigmat: 30
-    sigmac: 6
-    tau: 4
-    e: 4000
-    nu: 0.2
-    glueTau: 2
-    thickness: 1.27
-    maxArea: 826008
+    sigmat: 30 # Tensile strength
+    sigmac: 6 # Compressive strength
+    tau: 4 # Shear strength
+    e: 4000 # Young's modulus
+    nu: 0.2 # Possion's ratio
+    glueTau: 2 # Shear strength of glue
+    thickness: 1.27 # Thickness of material, used to estimate material usage and make 3D model exports
+    maxArea: 826008 # Maximum area of the material (for display only, not relevant to calculations)
   length: 1280 # Total length
-  supports: # Location of the supports
+  supports: # Location of the supports from the left end of the bridge
     - 15
     - 1075
-  diaphragms:
+  diaphragms: # Location of the diaphragms from the left end of the bridge
     - 0
     - 30
     - 550
@@ -29,34 +44,34 @@ bridge: # Bridge properties
     - 1090
     - 1250
     - 1280
-  crossSections:
-    - name: main
-      geometry: # Geometry of the cross section, a dict of names to rectangles ([x, y, w, h]) with bottom left as 0 and positive y up
+  crossSections: # A list of different cross sections the bridge takes on
+    - name: main # Name of this cross section (used in display and to reference rects)
+      geometry: # Geometry of the cross section (a list of rectangles), see top of this file for format
         - top:[0, 73.73, 100, 1.27]
         - gluetab1:[11.27, 72.46, 10, 1.27]
         - gluetab2:[78.73, 72.46, 10, 1.27]
         - side1:[10, 0, 1.27, 73.73]
         - side2:[88.73, 0, 1.27, 73.73]
         - bottom:[11.27, 0, 77.46, 1.27]
-      diaphragm:
+      diaphragm: # Shape of the diaphragm in this cross section (a list of rectangles); used for material usage estimates and 3D model exports
         - [10, 0, 80, 75]
-      minBHeight: null # Height/depth that has the least width b; null if centroidal axis
+      minBHeight: null # Global height/depth that has the least width b, used to calculate max shear; null if centroidal axis
       gluedComponents: # A list of glued components; each piece is one that will detach as a whole if the glue fails
-        - pieces: # A list of names of pieces that make up this glued component; names are from geometry
+        - pieces: # A list of rectangles that make up this glued component
           - top
-          glueArea: 20 # Total area of glue (b)
-      localBuckling: # Possible plate buckling modes for this cross section
-        twoEdge: # Piece that could fail by plate buckling with both edges restrained
-          - top[w=10.635:*-10.635] # Note: Slice an existing piece
+          glueArea: 20 # Total area/length of glue (b)
+      localBuckling: # Specify plates that could undergo local thin plate buckling
+        twoEdge: # Piece that could fail by plate buckling with both edges restrained (k = 4)
+          - top[w=10.635:*-10.635]
           - [10.635, 0, 78.73, 1.27]
-        oneEdge: # Plate buckling with only one edge restrained
+        oneEdge: # Plate buckling with only one edge restrained (k = 0.425)
           - top[w=:10.635]
           - top[w=*-10.635:]
-        linearStress: # Plate buckling with both edges restrained and linearly varying stress
-          - side1[h=0.635:*-0.635]:innerSide1 # Slicing an existing piece and assigning it to a new name
+        linearStress: # Plate buckling with both edges restrained and linearly varying stress (k = 6)
+          - side1[h=0.635:*-0.635]:innerSide1
           - side2[h=0.635:*-0.635]:innerSide2
-        shear: # Shear buckling
+        shear: # Plates that could buckle under shear
           - piece: innerSide1 # The plate that is susceptible to shear buckling
-            minBHeight: null # (Global) height/depth with the least width b when restricted to this piece
+            minBHeight: null # Height/depth with the least width b when restricted to this piece (relative to the global 0 depth)
       start: 0 # Where the cross section starts
-      stop: 1280 # Where the cross section ends; this bound is not inclusive
+      stop: 1280 # Where the cross section ends (technically, this bound is not inclusive, i.e. the cross section stops right before this position and never reaches it, but gets infinitely close to it)

@@ -1,3 +1,11 @@
+"""
+CIV102 Final Project -- Bridge calculation code
+
+This module contains all the code that does the math.
+For example calling code, see the docstrings of each function,
+or refer to bridgedesigner.py.
+"""
+
 import numpy as np
 import math
 import itertools
@@ -23,6 +31,9 @@ Rect = Union[List[float], Tuple[float, float, float, float]]
 def floatgeq(a: float, b: float) -> bool:
     """
     Test floats for greater than or almost-equality.
+
+    >>> floatgeq(0.1 + 0.2, 0.3)
+    True
     """
     return a > b or math.isclose(a, b, rel_tol=1e-7, abs_tol=1e-7)
 
@@ -30,6 +41,9 @@ def floatgeq(a: float, b: float) -> bool:
 def floatleq(a: float, b: float) -> bool:
     """
     Test floats for less than or almost-equality.
+
+    >>> floatleq(0.1 + 0.2, 0.3)
+    True
     """
     return a < b or math.isclose(a, b, rel_tol=1e-7, abs_tol=1e-7)
 
@@ -40,6 +54,11 @@ def obj_cube(x: float, y: float, z: float, w: float, h: float, l: float, start_v
 
     Returns 2 lists, one containing the vertices, and the other containing the faces.
     Each item is a string representing a line in the final file.
+    start_v is the current length of the vertices list, used for indexing vertices in the output.
+
+    >>> obj_cube(0, 0, 0, 1, 1, 1, 0) # 1x1x1 cube located at (0, 0, 0)
+    (['v 0 0 0', 'v 1 0 0', 'v 0 1 0', 'v 1 1 0', 'v 0 0 1', 'v 1 0 1', 'v 0 1 1', 'v 1 1 1'],
+    ['f 3 4 2', 'f 2 1 3', 'f 7 5 6', 'f 6 8 7', 'f 7 3 1', 'f 1 5 7', 'f 2 4 8', 'f 8 6 2', 'f 4 3 7', 'f 7 8 4', 'f 2 6 5', 'f 5 1 2'])
     """
     vertices = [
         (x, y, z),
@@ -131,6 +150,11 @@ class CrossSection:
         with negative indices).
         wstart and hstart can be omitted and default to 0. wstop and hstop can be omitted and default to the width
         and height of the rect to be sliced respectively.
+
+        >>> CrossSection.parse_rect("top:[0, 145, 100, 1.27]") # Rectangle at (0, 145) with width 100 and height 1.27, named top
+        [0, 145, 100, 1.27]
+        >>> CrossSection.parse_rect("top[w=:10.635]") # Slice the rectangle named top
+        [0, 145, 10.635, 1.27]
         """
         # Return rect if already the right type
         if isinstance(rect, list) or isinstance(rect, tuple):
@@ -231,6 +255,10 @@ class CrossSection:
         above specifies boundary behaviour. If it's true, then when y0 is at a boundary, the piece's width
         is only counted if it's above y0; if it's false, then the piece's width is only counted if it's below y0.
         If it's None, then the lesser of the two will be returned.
+
+        >>> cs = Bridge.from_yaml(open("design0.yaml", "r")).cross_sections[0][2] # Load bridge
+        >>> cs.calculate_b(cs.ybar) # Calculate thickness at centroid
+        2.54
         """
         # Default calculates both above and below y0 and takes the minimum
         if above is None:
@@ -246,6 +274,10 @@ class CrossSection:
     def calculate_q(self, y0: float) -> float:
         """
         Calculate the first moment of area about the centroid, Q, for a given depth y0 (relative to the bottom).
+
+        >>> cs = Bridge.from_yaml(open("design0.yaml", "r")).cross_sections[0][2] # Load bridge
+        >>> cs.calculate_q(cs.ybar) # Calculate Q at centroid
+        6248.444292781463
         """
         # Integrate from the top
         q = 0
@@ -272,6 +304,10 @@ class CrossSection:
         Calculate the shear force Vfail that causes shear failure of the matboard.
 
         tau is the shear strength of the matboard.
+
+        >>> cs = Bridge.from_yaml(open("design0.yaml", "r")).cross_sections[0][2] # Load bridge
+        >>> cs.calculate_matboard_vfail(4.0) # Calculate matboard failure shear force
+        675.905944764659
         """
         # tau = VQ/Ib => V = tau*Ib/Q
         # Consider two points: the centroid, where Q is maximized, and the depth where b is minimized
@@ -286,6 +322,10 @@ class CrossSection:
         Calculate the shear force Vfail that causes shear failure of the glue.
 
         tau is the shear strength of the glue.
+
+        >>> cs = Bridge.from_yaml(open("design0.yaml", "r")).cross_sections[0][2] # Load bridge
+        >>> cs.calculate_glue_vfail(2.0)
+        4008.2862572599493
         """
         # Calculate for each glued component
         # V = tau*Ib/Q for each component like above
@@ -302,6 +342,10 @@ class CrossSection:
         Returns an upper bound and a lower bound. If the bending moment is higher than the upper bound or more
         negative than the lower bound then the structure will fail. Note that if the upper/lower bound does not
         exist for this mode then math.inf will be returned.
+
+        >>> cs = Bridge.from_yaml(open("design0.yaml", "r")).cross_sections[0][2] # Load bridge
+        >>> cs.calculate_two_edge_mfail(4000, 0.2)
+        (44528.15311204416, -35555.46882497274)
         """
         # Upper and lower bound, for when bottom is in compression and when top is in compression respectively
         mfailu = math.inf
@@ -333,6 +377,10 @@ class CrossSection:
         Returns an upper bound and a lower bound. If the bending moment is higher than the upper bound or more
         negative than the lower bound then the structure will fail. Note that if the upper/lower bound does not
         exist for this mode then math.inf will be returned.
+
+        >>> cs = Bridge.from_yaml(open("design0.yaml", "r")).cross_sections[0][2] # Load bridge
+        >>> cs.calculate_one_edge_mfail(4000, 0.2) # Note the -inf means there is no lower bound, since there's no member below the centroid that can buckle this way
+        (259280.07011232316, -inf)
         """
         mfailu = math.inf
         mfaill = math.inf
@@ -363,6 +411,10 @@ class CrossSection:
         Returns an upper bound and a lower bound. If the bending moment is higher than the upper bound or more
         negative than the lower bound then the structure will fail. Note that if the upper/lower bound does not
         exist for this mode then math.inf will be returned.
+
+        >>> cs = Bridge.from_yaml(open("design0.yaml", "r")).cross_sections[0][2] # Load bridge
+        >>> cs.calculate_linear_stress_mfail(4000, 0.2)
+        (445567.4324350074, -199051.57858301478)
         """
         mfailu = math.inf
         mfaill = math.inf
@@ -390,6 +442,12 @@ class CrossSection:
     def calculate_buckling_vfail(self, e: float, nu: float, a: float) -> float:
         """
         Calculate the shear force Vfail that would cause shear buckling.
+
+        a is the distance between diaphragms and can be infinite if there are none.
+
+        >>> cs = Bridge.from_yaml(open("design0.yaml", "r")).cross_sections[0][2] # Load bridge
+        >>> cs.calculate_buckling_vfail(4000, 0.2, math.inf) # Calculate the shear force that causes buckling if there are no diaphragms
+        889.4352130899804
         """
         vfail = math.inf
         for (_, y, w, h), min_b_height in self.local_buckling.shear:
@@ -414,6 +472,11 @@ class CrossSection:
     def visualize(self, ax: Axes, show_glued_components: bool = False, show_local_buckling: bool = False) -> None:
         """
         Draw the cross section onto a matplotlib plot to visualize it.
+        
+        >>> cs = Bridge.from_yaml(open("design0.yaml", "r")).cross_sections[0][2] # Load bridge
+        >>> from matplotlib import pyplot as plt
+        >>> cs.visualize(plt.gca(), True, True) # Visualize on the global current axis, showing glued components and local buckling modes
+        >>> plt.show() # Show the plot
         """
         # Draw all the base rectangles
         for x, y, w, h in self.geometry:
@@ -506,12 +569,21 @@ class Bridge:
     def from_yaml(cls, file) -> "Bridge":
         """
         Construct bridge from the input YAML file.
+
+        The structure of the YAML is not documented here, but design0.yaml contains comments annotating each field.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load from file design0.yaml
         """
         return Bridge(yaml.load(file, Loader))
     
     def elevation_view(self, ax: Axes) -> None:
         """
         Draw the elevation view onto a matplotlib axis.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> from matplotlib import pyplot as plt
+        >>> bridge.elevation_view(plt.gca()) # Visualize on the global current axis
+        >>> plt.show() # Show the plot
         """
         ccycle = plt.get_cmap("tab10")
         miny = 0
@@ -532,6 +604,10 @@ class Bridge:
     def export_obj(self) -> str:
         """
         Output a 3D model in obj format.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> with open("out.obj", "w") as f: # Save 3d model to out.obj
+        ...     f.write(bridge.export_obj())
         """
         vertices = []
         faces = []
@@ -568,6 +644,10 @@ class Bridge:
     def load_train(self, dist: float) -> Forces:
         """
         Create loading condition for the train, with the right edge of the train at distance dist.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> bridge.load_train(bridge.length) # Load the train at the location where the right of the train is at the right end of the bridge
+        [(372, -66.66666666666667), (548, -66.66666666666667), (712, -66.66666666666667), (888, -66.66666666666667), (1052, -66.66666666666667), (1228, -66.66666666666667)]
         """
         loads = []
         # Create 2 wheel point loads for each car
@@ -581,12 +661,20 @@ class Bridge:
     def load_points(self, p: float) -> Forces:
         """
         Create loading condition for applying loads P at each location in the geometry.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> bridge.load_points(200) # Load the bridge with 2 200N point loads
+        [(565, -200), (1265, -200)]
         """
         return [(loc, -p) for loc in self.point_load_locations]
 
     def reaction_forces(self, loads: Forces) -> Forces:
         """
         Compute the two reaction forces and add them to the forces.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> bridge.reaction_forces(bridge.load_points(200)) # Compute reaction forces for 2 point loads of 200N
+        [(15, 60.37735849056605), (565, -200), (1075, 339.62264150943395), (1265, -200)]
         """
         # Sum of moments
         ma = sum(load * (loc - self.supports[0]) for loc, load in loads)
@@ -602,6 +690,11 @@ class Bridge:
     def make_sfd(self, loads: Forces) -> np.ndarray:
         """
         Compute the Shear Force Diagram from loads.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> forces = bridge.reaction_forces(bridge.load_points(200)) # Compute reaction forces
+        >>> bridge.make_sfd(forces) # For the full graphed SFD, see design report
+        array([0., 0., 0., ..., 0., 0., 0.])
         """
         shear = [0] * self.length # One point per mm
         # Accumulate point loads
@@ -622,6 +715,13 @@ class Bridge:
     def make_bmd(self, sfd: np.ndarray) -> np.ndarray:
         """
         Compute the Bending Moment Diagram from the Shear Force Diagram.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> forces = bridge.reaction_forces(bridge.load_points(200)) # Compute reaction forces
+        >>> sfd = bridge.make_sfd(forces) # Compute SFD
+        >>> bridge.make_bmd(sfd) # For the full graphed BMD, see design report
+        array([ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00, ...,
+               -5.60248736e-10, -5.60248736e-10, -5.60248736e-10])
         """
         # Accumulate sfd to find bmd
         bmd = [0] * len(sfd)
@@ -637,6 +737,14 @@ class Bridge:
     def make_curvature_diagram(self, bmd: np.ndarray) -> np.ndarray:
         """
         Compute the Curvature Diagram from the Bending Moment Diagram.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> forces = bridge.reaction_forces(bridge.load_points(200)) # Compute reaction forces
+        >>> sfd = bridge.make_sfd(forces) # Compute SFD
+        >>> bmd = bridge.make_bmd(sfd) # Compute BMD
+        >>> bridge.make_curvature_diagram(bmd) # For the full graphed curvature diagram, see design report
+        array([ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00, ...,
+               -3.36942996e-19, -3.36942996e-19, -3.36942996e-19])
         """
         # Keep track of the right cross section
         i = 0
@@ -654,6 +762,12 @@ class Bridge:
     def max_sfd_train(self, step: Optional[int] = 2) -> Tuple[np.ndarray, np.ndarray]:
         """
         Compute the maximum shear force at every point from all possible train locations.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> bridge.max_sfd_train() # For the full SFD, see design report
+        (array([0.00000000e+00, 0.00000000e+00, 0.00000000e+00, ...,
+                4.26325641e-14, 4.26325641e-14, 4.26325641e-14]),
+         array([0., 0., 0., ..., 0., 0., 0.]))
         """
         # Upper and lower bound of shear force
         upper = np.zeros((self.length,))
@@ -677,6 +791,13 @@ class Bridge:
     def max_bmd_train(self, step: Optional[int] = 2) -> Tuple[np.ndarray, np.ndarray]:
         """
         Compute the maximum bending moment at every point from all possible train locations.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> bridge.max_bmd_train() # For the full BMD, see design report
+        (array([0.00000000e+00, 0.00000000e+00, 0.00000000e+00, ...,
+                1.03423758e-09, 1.03426601e-09, 1.03429443e-09]),
+        array([ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00, ...,
+                -1.00271791e-09, -1.00271791e-09, -1.00271791e-09]))
         """
         # Same logic as above
         upper = np.zeros((self.length,))
@@ -700,6 +821,13 @@ class Bridge:
         Returns two numpy arrays, consisting of an upper and lower bound (lower bound will be negative).
         If the bending moment is higher than the upper bound or more negative than the lower bound then the
         structure will fail.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> bridge.calculate_tensile_mfail() # For the full diagram see design report
+        (array([299042.88662032, 299042.88662032, 299042.88662032, ...,
+                299042.88662032, 299042.88662032, 299042.88662032]),
+         array([-374508.56035809, -374508.56035809, -374508.56035809, ...,
+                -374508.56035809, -374508.56035809, -374508.56035809]))
         """
         upper = []
         lower = []
@@ -722,6 +850,13 @@ class Bridge:
         Returns two numpy arrays, consisting of an upper and lower bound (lower bound will be negative).
         If the bending moment is higher than the upper bound or more negative than the lower bound then the
         structure will fail.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> bridge.calculate_compressive_mfail() # For the full diagram see design report
+        (array([74901.71207162, 74901.71207162, 74901.71207162, ...,
+                74901.71207162, 74901.71207162, 74901.71207162]),
+         array([-59808.57732406, -59808.57732406, -59808.57732406, ...,
+                -59808.57732406, -59808.57732406, -59808.57732406]))
         """
         # See logic above
         upper = []
@@ -739,6 +874,11 @@ class Bridge:
     def calculate_matboard_vfail(self) -> np.ndarray:
         """
         Calculate the shear force Vfail that would result in matboard shear failure.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> bridge.calculate_glue_vfail() # For the full diagram see design report
+        array([675.90594476, 675.90594476, 675.90594476, ..., 675.90594476,
+               675.90594476, 675.90594476])
         """
         vfail = []
         # For each cross section, compute a single Vfail
@@ -749,6 +889,11 @@ class Bridge:
     def calculate_glue_vfail(self) -> np.ndarray:
         """
         Calculate the shear force Vfail that causes shear failure of the glue.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> bridge.calculate_glue_vfail() # For the full diagram see design report
+        array([4008.28625726, 4008.28625726, 4008.28625726, ..., 4008.28625726,
+               4008.28625726, 4008.28625726])
         """
         vfail = []
         for start, stop, cs in self.cross_sections:
@@ -763,6 +908,13 @@ class Bridge:
         Returns two numpy arrays, consisting of an upper and lower bound (lower bound will be negative).
         If the bending moment is higher than the upper bound or more negative than the lower bound then the
         structure will fail.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> bridge.calculate_two_edge_mfail() # For the full diagram see design report
+        (array([44528.15311204, 44528.15311204, 44528.15311204, ...,
+                44528.15311204, 44528.15311204, 44528.15311204]),
+         array([-35555.46882497, -35555.46882497, -35555.46882497, ...,
+                -35555.46882497, -35555.46882497, -35555.46882497]))
         """
         upper = []
         lower = []
@@ -781,6 +933,12 @@ class Bridge:
         Returns two numpy arrays, consisting of an upper and lower bound (lower bound will be negative).
         If the bending moment is higher than the upper bound or more negative than the lower bound then the
         structure will fail.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> bridge.calculate_one_edge_mfail() # For the full diagram see design report; note the infs here means that this kind of buckling cannot happen for negative bending moments
+        (array([259280.07011232, 259280.07011232, 259280.07011232, ...,
+                259280.07011232, 259280.07011232, 259280.07011232]),
+         array([-inf, -inf, -inf, ..., -inf, -inf, -inf]))
         """
         upper = []
         lower = []
@@ -798,6 +956,13 @@ class Bridge:
         Returns two numpy arrays, consisting of an upper and lower bound (lower bound will be negative).
         If the bending moment is higher than the upper bound or more negative than the lower bound then the
         structure will fail.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> bridge.calculate_linear_stress_mfail() # For the full diagram see design report
+        (array([445567.43243501, 445567.43243501, 445567.43243501, ...,
+                445567.43243501, 445567.43243501, 445567.43243501]),
+         array([-199051.57858301, -199051.57858301, -199051.57858301, ...,
+                -199051.57858301, -199051.57858301, -199051.57858301]))
         """
         upper = []
         lower = []
@@ -810,6 +975,11 @@ class Bridge:
     def calculate_buckling_vfail(self) -> np.ndarray:
         """
         Calculate the shear force Vfail that causes shear buckling.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> bridge.calculate_buckling_vfail() # For the full diagram see design report
+        array([6078.25358827, 6078.25358827, 6078.25358827, ..., 6078.25358827,
+               6078.25358827, 6078.25358827])
         """
         vfail = []
         # Need to iterate through both diaphragm distances and cross sections
@@ -832,6 +1002,14 @@ class Bridge:
         """
         Compute the Factor of Safety between the internal shear force in sfd and the failure shear forces
         in fail_shear.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> forces = bridge.reaction_forces(bridge.load_train(bridge.length)) # Compute reaction forces for train loading at the end of the bridge
+        >>> sfd = bridge.make_sfd(forces) # Compute SFD
+        >>> bridge.calculate_shear_fos(sfd, [bridge.calculate_matboard_vfail(), # Compute FoS taking into account all possible failure modes
+        ...                                  bridge.calculate__glue_vfail(),
+        ...                                  bridge.calculate_buckling_vfail()])
+        2.9443574032213915
         """
         # Find the minimum failure shear force by taking the minimum of all the failure shear forces
         min_fail_shear = [min(v) for v in zip(*fail_shear)]
@@ -842,6 +1020,17 @@ class Bridge:
         """
         Compute the Factor of Safety between the internal bending moment in bmd and the failure bending moments
         in fail_moment_upper and fail_moment_lower.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> forces = bridge.reaction_forces(bridge.load_train(bridge.length)) # Compute reaction forces for train loading at the end of the bridge
+        >>> sfd = bridge.make_sfd(forces) # Compute SFD
+        >>> bmd = bridge.make_bmd(sfd) # Compute BMD
+        >>> bridge.calculate_moment_fos(bmd, *zip(bridge.calculate_tensile_mfail(), # Compute FoS taking into account all possible failure modes
+        ...                                       bridge.calculate_compressive_mfail(),
+        ...                                       bridge.calculate_one_edge_mfail(),
+        ...                                       bridge.calculate_two_edge_mfail(),
+        ...                                       bridge.calculate_linear_stress_mfail()))
+        1.0218037992776794
         """
         # Find the max and min failure bending moment
         upper = [min(m) for m in zip(*fail_moment_upper)]
@@ -853,6 +1042,14 @@ class Bridge:
     def calculate_tangential_deviation(self, phi: np.ndarray, a: int, b: int) -> float:
         """
         Calculate the tangential deviation of b from a tangent drawn at a, delta_BA.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> forces = bridge.reaction_forces(bridge.load_points(200)) # Compute reaction forces
+        >>> sfd = bridge.make_sfd(forces) # Compute SFD
+        >>> bmd = bridge.make_bmd(sfd) # Compute BMD
+        >>> phi = bridge.make_curvature_diagram(bmd) # Compute curvature diagram
+        >>> bridge.calculate_tangential_deviation(bridge.supports[0], bridge.supports[1]) # Calculate tangential deviation of support 2 from support 1
+        4.553477471021786
         """
         # Compute area and xbar by numerical integration
         # Cut curvature diagram from a to b
@@ -870,6 +1067,14 @@ class Bridge:
         Calculate the deflection at a location x from the left end of the bridge.
 
         x should be in-between the two supports. Otherwise, the behaviour is undefined.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> forces = bridge.reaction_forces(bridge.load_points(200)) # Compute reaction forces
+        >>> sfd = bridge.make_sfd(forces) # Compute SFD
+        >>> bmd = bridge.make_bmd(sfd) # Compute BMD
+        >>> phi = bridge.make_curvature_diagram(bmd) # Compute curvature diagram
+        >>> bridge.calculate_deflection(phi, bridge.supports[0] + (bridge.supports[1] - bridge.supports[0]) // 2) # Compute midpoint deflection
+        1.3706490113660048
         """
         delta_ba = self.calculate_tangential_deviation(phi, self.supports[0], self.supports[1])
         # By similar triangles, delta_BA / AB = Delta_XA' / AX
@@ -883,6 +1088,10 @@ class Bridge:
 
         Note that numbers do not account for folding and assumes that matboard can be perfectly utilized so this
         number is likely not very accurate, but may serve as a rough guide.
+
+        >>> bridge = Bridge.from_yaml(open("design0.yaml", "r")) # Load bridge
+        >>> bridge.matboard_area() # Estimate total matboard area used
+        489497.5999999999
         """
         # Get an estimate by considering the area of each cross section and the length of that cross section
         # and then dividing the volume by the thickness
@@ -895,6 +1104,6 @@ class Bridge:
                     next(cs for start, stop, cs in self.cross_sections if start <= dx < stop)
             except StopIteration as e:
                 raise ValueError(f"Diaphragm at {dx} not in any cross section!") from e
-            for x, y, w, h in cs.diaphragm_geometry:
+            for _, _, w, h in cs.diaphragm_geometry:
                 body_area += w * h
         return body_area

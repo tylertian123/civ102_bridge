@@ -1,3 +1,10 @@
+"""
+CIV102 Final Project -- Bridge designer command-line interface
+
+This module contains code that provides a command-line interface
+to the calculation functions in calculate.py.
+"""
+
 import click
 import calculate
 import numpy as np
@@ -8,26 +15,57 @@ from matplotlib import pyplot as plt
 @click.argument("bridge_yaml", type=click.File("r", encoding="utf-8"))
 @click.pass_context
 def main_cli(ctx, bridge_yaml: TextIO):
+    """
+    CIV102 Final Project -- Bridge Designer CLI
+
+    Command-line interface for the bridge designer.
+
+    BRIDGE_YAML is the path to a YAML file describing the bridge. Format is documented in design0.yaml.
+
+    Two COMMANDs are available: 'geometry' for visualizing the bridge geometry and calculating cross-sectional
+    properties, and 'load' for applying a load to the bridge and graphing the SFD, BMD and failure values.
+    """
     ctx.obj = calculate.Bridge.from_yaml(bridge_yaml)
 
 @main_cli.command()
-@click.option("--visualize/--no-visualize", "-v", default=False, help="Show the cross-section in a GUI window.")
-@click.option("--glue/--no-glue", "-g", default=False, help="Show glued components.")
-@click.option("--buckling/--no-buckling", "-b", default=False, help="Show local buckling types.")
-@click.option("--cross-section", "-c", type=int, default=None, help="Show this cross section only.")
-@click.option("--elevation/--no-elevation", "-e", default=False, help="Show elevation view.")
+@click.option("--visualize/--no-visualize", "-v", default=False, help="Show the cross-section in a GUI window using matplotlib.")
+@click.option("--glue/--no-glue", "-g", default=False, help="Show glued components in a different colour in the visualization.")
+@click.option("--buckling/--no-buckling", "-b", default=False, help="Show local buckling types in the visualization (locations of two-edge, one-edge, and linear stress buckling).")
+@click.option("--cross-section", "-c", type=str, default=None, help="Show this cross section only. The argument can either be a cross section name or number (1-based).")
+@click.option("--elevation/--no-elevation", "-e", default=False, help="Show elevation view in a GUI window using matplotlib.")
 @click.option("--export-obj", type=click.File("w", encoding="utf-8"), default=None, help="Export the bridge's 3d model to an obj file.")
 @click.pass_context
-def geometry(ctx, visualize: bool, glue: bool, buckling: bool, cross_section: int, elevation: bool, export_obj: TextIO):
+def geometry(ctx, visualize: bool, glue: bool, buckling: bool, cross_section: str, elevation: bool, export_obj: TextIO):
     """
     Visualize the bridge geometry and calculate cross-sectional properties.
+
+    Example Usage:
+
+    Basic cross sectional properties:
+
+        python3 bridgedesigner.py design0.yaml geometry
+
+    Visualize all cross sections with glue and buckling modes:
+
+        python3 bridgedesigner.py design0.yaml geometry -vgb
+
+    Export bridge model to design0.obj:
+
+        python3 bridgedesigner.py design0.yaml geometry --export-obj design0.obj
     """
     bridge = ctx.obj # type: calculate.Bridge
     if export_obj is not None:
         export_obj.write(bridge.export_obj())
+    if cross_section is not None:
+        try:
+            cross_section = int(cross_section)
+        except ValueError:
+            pass
     # Analyze each cross section
     for i, (start, stop, cs) in enumerate(bridge.cross_sections):
-        if cross_section is not None and i + 1 != cross_section:
+        # Filter to only the specific cross section requested
+        if cross_section is not None and ((isinstance(cross_section, int) and i + 1 != cross_section)
+            or (isinstance(cross_section, str) and cross_section != cs.name)):
             continue
         label = f"Cross section '{cs.name}' (#{i + 1}, start: {start}, stop: {stop})"
         print(label)
@@ -65,6 +103,23 @@ def load(ctx, load_type: str, load_amount: str, mfail: List[str], vfail: List[st
     If using point loading, LOAD_AMOUNT is the magnitude of each point load; if using train loading, it is the
     location of the front (right side) of the train relative to the left side of the bridge. Use 'max' to get
     the maximum possible shear and bending moment across all possible train positions.
+
+    By default, only the SFD and BMD are shown, without any of the failure loads. To graph the failure loads
+    for a specific failure mode, use the --mfail/-m or --vfail/-v options to specify the failure modes to graph.
+
+    Example Usage:
+
+    View SFD and BMD for loading the train at the end of the bridge:
+
+        python3 bridgedesigner.py design0.yaml load train 1280
+    
+    View max SFD and BMD for all possible train positions:
+
+        python3 bridgedesigner.py design0.yaml load train max
+    
+    View SFD and BMD and calculate all failure loads for 2 point loads of 200N:
+    
+        python3 bridgedesigner.py design0.yaml load point 200 --mfail all --vfail all
     """
     bridge = ctx.obj # type: calculate.Bridge
 
