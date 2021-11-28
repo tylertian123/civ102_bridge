@@ -1,0 +1,74 @@
+\documentclass{article}
+
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage[margin=1in]{geometry}
+\usepackage{titling}
+\usepackage{shellesc}
+\usepackage{minted}
+\usepackage[bookmarks]{hyperref}
+\usepackage{xcolor}
+\hypersetup{
+    colorlinks,
+    linkcolor={red},
+    citecolor={blue!50!black},
+    urlcolor={blue!80!black}
+}
+
+\setlength{\droptitle}{-7em}
+
+\title{Supporting Calculations}
+\author{Group 701: Tyler Tian, Julia Ye, Ivy Tan}
+
+\begin{document}
+
+\maketitle
+
+\section{Source Code}
+
+The code is split into two parts: A Python module that does all the calculations (\ref{sec:calc}), and another module
+that provides a command-line interface (CLI) (\ref{sec:cli}).
+
+Bridge designs are given to the program in YAML files. The specification for Design 0 (\ref{sec:design0}) and the final
+design (\ref{sec:design}) are listed here.
+
+The code depends on the following packages:
+\begin{itemize}
+    \setlength\itemsep{0em}
+    \item \texttt{numpy}
+    \item \texttt{matplotlib}
+    \item \texttt{pyyaml}
+    \item \texttt{click} (CLI only)
+\end{itemize}
+
+\subsection{Calculations Code}
+\label{sec:calc}
+
+Sample usage of the functions to do the calculations is included at the end of this code listing. All functions are
+documented with docstrings, which includes example calls.
+
+\inputminted[linenos, breaklines, fontsize=\small]{python}{calculate.py}
+\pagebreak
+
+\subsection{Command-Line Interface Code}
+\label{sec:cli}
+
+\inputminted[linenos, breaklines, fontsize=\small]{python}{bridgedesigner.py}
+\pagebreak
+
+\subsection{Bridge Specification Code}
+
+\subsubsection{Design 0}
+\label{sec:design0}
+
+\inputminted[linenos, breaklines, fontsize=\small]{yaml}{design0.yaml}
+\pagebreak
+
+\subsubsection{Final Design}
+\label{sec:design}
+
+\inputminted[linenos, breaklines, fontsize=\small]{yaml}{new.yaml}
+\pagebreak
+
+\end{document}

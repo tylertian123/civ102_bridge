@@ -3,3 +3,12 @@ __pycache__/
 .vscode/
 *.obj
 *.mtl
+
+# LaTeX Build Output
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.synctex.gz
+*.out
+_minted-calculations/

@@ -1107,3 +1107,66 @@ class Bridge:
             for _, _, w, h in cs.diaphragm_geometry:
                 body_area += w * h
         return body_area
+
+
+if __name__ == "__main__":
+    # Example code
+    with open("design0.yaml", "r", encoding="utf-8") as f:
+        bridge = Bridge.from_yaml(f)
+    
+    # Point loading: Calculate failure load P
+    # Find SFD, BMD, curvature diagram
+    forces = bridge.load_points(200)
+    forces = bridge.reaction_forces(forces)
+    sfd = bridge.make_sfd(forces)
+    bmd = bridge.make_bmd(sfd)
+    phi = bridge.make_curvature_diagram(bmd)
+
+    # Compute failure loads
+    matboard_vfail = bridge.calculate_matboard_vfail()
+    glue_vfail = bridge.calculate_glue_vfail()
+    buckling_vfail = bridge.calculate_buckling_vfail()
+    tensile_mfail_upper, tensile_mfail_lower = bridge.calculate_tensile_mfail()
+    compressive_mfail_upper, compressive_mfail_lower = bridge.calculate_compressive_mfail()
+    one_edge_mfail_upper, one_edge_mfail_lower = bridge.calculate_one_edge_mfail()
+    two_edge_mfail_upper, two_edge_mfail_lower = bridge.calculate_two_edge_mfail()
+    linear_stress_mfail_upper, linear_stress_mfail_lower = bridge.calculate_linear_stress_mfail()
+
+    # Find factors of safety and use linearity to find the final failure load
+    vfail = [matboard_vfail, glue_vfail, buckling_vfail]
+    mfail_upper = [tensile_mfail_upper,
+                   compressive_mfail_upper,
+                   one_edge_mfail_upper,
+                   two_edge_mfail_upper,
+                   linear_stress_mfail_upper]
+    mfail_lower = [tensile_mfail_lower,
+                   compressive_mfail_lower,
+                   one_edge_mfail_lower,
+                   two_edge_mfail_lower,
+                   linear_stress_mfail_lower]
+    fos_shear = bridge.calculate_shear_fos(sfd, vfail)
+    fos_moment = bridge.calculate_moment_fos(bmd, mfail_upper, mfail_lower)
+    fos = min(fos_shear, fos_moment)
+
+    # Find the failure load
+    p = fos * 200
+    print("Failure load P:", p)
+
+    # Compute midspan deflection
+    delta_mid = bridge.calculate_deflection(phi, bridge.supports[0] + (bridge.supports[1] - bridge.supports[0]) // 2)
+    print("Midspan deflection under P = 200N:", delta_mid)
+
+    # Find factors of safety for train loading
+    sfd = bridge.max_sfd_train()
+    bmd = bridge.max_bmd_train()
+    
+    # Compute factors of safety separately for positive and negative shear and bending moment
+    # Then take the minimum
+    fos_shear_pos = bridge.calculate_shear_fos(sfd[0], vfail)
+    fos_shear_neg = bridge.calculate_shear_fos(sfd[1], vfail)
+    fos_moment_pos = bridge.calculate_moment_fos(bmd[0], mfail_upper, mfail_lower)
+    fos_moment_neg = bridge.calculate_moment_fos(bmd[1], mfail_upper, mfail_lower)
+    fos_shear = min(fos_shear_pos, fos_shear_neg)
+    fos_moment = min(fos_moment_pos, fos_moment_neg)
+    print("Factor of Safety against shear:", fos_shear)
+    print("Factor of Safety against bending moment:", fos_moment)
