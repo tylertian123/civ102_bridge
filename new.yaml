@@ -40,18 +40,18 @@ bridge:
   crossSections:
     - name: left # No bottom plate, no top support
       geometry:
-        - top:[0, 145, 100, 1.27]
-        - gluetab1:[11.27, 143.73, 5, 1.27]
-        - gluetab2:[83.73, 143.73, 5, 1.27]
-        - side1:[10, 0, 1.27, 145]
-        - side2:[88.73, 0, 1.27, 145]
+        - top:[0, 140, 100, 1.27]
+        - gluetab1:[11.27, 138.73, 10, 1.27]
+        - gluetab2:[78.73, 138.73, 10, 1.27]
+        - side1:[10, 0, 1.27, 140]
+        - side2:[88.73, 0, 1.27, 140]
       diaphragm:
-        - diaphragm:[11.27, 1.27, 77.46, 142.46]
+        - diaphragm:[11.27, 1.27, 77.46, 137.46]
       minBHeight: null
       gluedComponents:
         - pieces:
           - top
-          glueArea: 5
+          glueArea: 10
       localBuckling:
         twoEdge:
           - top[w=10.635:*-10.635]:tetop
@@ -83,7 +83,7 @@ bridge:
       gluedComponents:
         - pieces:
           - top
-          glueArea: 5
+          glueArea: 10
         - pieces:
           - bottom
           - bottomgluetab1
@@ -111,19 +111,19 @@ bridge:
 
     - name: lefttopreinforced # No bottom, and reinforced top (double top thickness in the middle)
       geometry:
-        - top:[0, 145, 100, 1.27]
-        - gluetab1:[11.27, 143.73, 5, 1.27]
-        - gluetab2:[83.73, 143.73, 5, 1.27]
-        - side1:[10, 0, 1.27, 145]
-        - side2:[88.73, 0, 1.27, 145]
-        - gluetab1[w=*0:*67.46]:topSupport
+        - left:top[]:top
+        - left:gluetab1[]:gluetab1
+        - left:gluetab2[]:gluetab2
+        - left:side1[]:side1
+        - left:side2[]:side2
+        - gluetab1[w=*0:*57.46]:topSupport
       diaphragm:
-        - diaphragm:[11.27, 1.27, 77.46, 142.46]
+        - diaphragm:[11.27, 1.27, 77.46, 137.46]
       minBHeight: null
       gluedComponents:
         - pieces:
           - top
-          glueArea: 5
+          glueArea: 10
       localBuckling:
         twoEdge:
           - top[w=10.635:*-10.635, h=-1.27:]
@@ -148,14 +148,14 @@ bridge:
         - left:side2[w=1.27:*1.27]:side2
         - side1[w=-1.27:*-1.27, h=1.27:*-1.27]:extension1
         - side2[w=-1.27:*-1.27, h=1.27:*-1.27]:extension2
-        - gluetab1[w=*0:*67.46]:topSupport
+        - lefttopreinforced:topSupport[w=1.27:*1.27]:topSupport
       diaphragm:
         - left:diaphragm[w=1.27:]:diaphragm
       minBHeight: null
       gluedComponents:
         - pieces:
           - top
-          glueArea: 5
+          glueArea: 10
         - pieces:
           - extension1
           glueArea: 71.19
@@ -187,14 +187,14 @@ bridge:
         - joint:gluetab2[]:gluetab2
         - joint:side1[]:side1
         - joint:side2[]:side2
-        - gluetab1[w=*0:*67.46]:topSupport
+        - joint:topSupport[]:topSupport
       diaphragm:
         - left:diaphragm[w=1.27:*1.27]:diaphragm
       minBHeight: null
       gluedComponents:
         - pieces:
           - top
-          glueArea: 5
+          glueArea: 10
         - pieces:
           - topSupport
           glueArea: 57.46
@@ -257,7 +257,7 @@ bridge:
       gluedComponents:
         - pieces:
           - top
-          glueArea: 10
+          glueArea: 20
       localBuckling:
         twoEdge:
           - top[w=11.905:*-9.365]
@@ -289,7 +289,7 @@ bridge:
       gluedComponents:
         - pieces:
           - top
-          glueArea: 10
+          glueArea: 20
         - pieces:
           - bottomSupport
           glueArea: 77.46

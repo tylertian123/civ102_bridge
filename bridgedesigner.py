@@ -219,7 +219,7 @@ def load(ctx, load_type: str, load_amount: str, mfail: List[str], vfail: List[st
 
     # Calculate failure P value by simply multiplying the current load by the FoS
     if load_type == "point":
-        print("Failure P:", float(load_amount) * fos_moment)
+        print("Failure P:", float(load_amount) * min(fos_shear, fos_moment))
     if load_amount != "max":
         print("Midspan deflection:", bridge.calculate_deflection(bridge.make_curvature_diagram(bmd), bridge.supports[0] + (bridge.supports[1] - bridge.supports[0]) // 2))
 
