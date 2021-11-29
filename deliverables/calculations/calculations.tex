@@ -83,19 +83,53 @@ Manual calculations are shown below for verification of the code. All calculatio
 Verifies reaction forces, shear force diagrams, and bending moment diagrams as computed by
 \mintinline{python}{Bridge.reaction_forces()}, \mintinline{python}{Bridge.make_sfd()}, and
 \mintinline{python}{Bridge.make_bmd()}. These numbers can be obtained by running
-\texttt{python3 bridgedesigner.py design0.yaml load point 200}.
+\texttt{python3 bridgedesigner.py design0.yaml load point 200} and
+\texttt{python3 bridgedesigner.py design0.yaml load train 280}, or
+\begin{minted}[linenos, breaklines, fontsize=\small]{python}
+    with open("design0.yaml", "r", encoding="utf-8") as f:
+        bridge = Bridge.from_yaml(f)
+    
+    forces = bridge.load_points(200)
+    forces = bridge.reaction_forces(forces)
+    # SFD for point load P = 200
+    sfd_point = bridge.make_sfd(forces)
+    # BMD for point load P = 200
+    bmd_point = bridge.make_bmd(sfd)
 
-\begin{figure}[h]
+    forces = bridge.load_train(280)
+    forces = bridge.reaction_forces(forces)
+    # SFD for train load
+    sfd_train = bridge.make_sfd(forces)
+    # BMD for train load
+    bmd_train = bridge.make_bmd(sfd)
+\end{minted}
+
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.49\textwidth]{forces.png}
     \includegraphics[width=0.49\textwidth]{sfd_bmd.png}
     \caption{Reaction forces, SFD and BMD (point loading).}
 \end{figure}
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{train.png}
+    \caption{Reaction forces, SFD and BMD (one case of train loading).}
+\end{figure}
+
 \subsection{Cross-Sectional Properties}
 
 Verifies cross-sectional properties computed by the \mintinline{python}{CrossSection} class.
-These numbers can be obtained by running \texttt{python3 bridgedesigner.py design0.yaml geometry}.
+These numbers can be obtained by running \texttt{python3 bridgedesigner.py design0.yaml geometry}, or
+\begin{minted}[linenos, breaklines, fontsize=\small]{python}
+    with open("design0.yaml", "r", encoding="utf-8") as f:
+        bridge = Bridge.from_yaml(f)
+    cs = bridge.cross_sections[0][2]
+    print("Area:", cs.area)
+    print("Centroid:", cs.ybar)
+    print("I:", cs.i)
+    print("Centroidal Q:", cs.calculate_q(cs.ybar))
+\end{minted}
 
 \begin{figure}[h]
     \centering
@@ -122,7 +156,38 @@ These numbers can be obtained by running \texttt{python3 bridgedesigner.py desig
 
 Verifies various \(M_{fail}\) and \(V_{fail}\) values as computed by the \mintinline{python}{Bridge.calculate_<mode>_mfail()}
 and \mintinline{python}{Bridge.calculate_<mode>_vfail()} methods. These numbers can be obtained by running
-\texttt{python3 bridgedesigner.py design0.yaml load point 200 --mfail all --vfail all}.
+\texttt{python3 bridgedesigner.py design0.yaml load point 200 --mfail all --vfail all}, or
+\begin{minted}[linenos, breaklines, fontsize=\small]{python}
+    with open("design0.yaml", "r", encoding="utf-8") as f:
+        bridge = Bridge.from_yaml(f)
+    
+        matboard_vfail = bridge.calculate_matboard_vfail()
+    
+    matboard_vfail = bridge.calculate_matboard_vfail()
+    glue_vfail = bridge.calculate_glue_vfail()
+    buckling_vfail = bridge.calculate_buckling_vfail()
+    tensile_mfail_upper, tensile_mfail_lower = bridge.calculate_tensile_mfail()
+    compressive_mfail_upper, compressive_mfail_lower = bridge.calculate_compressive_mfail()
+    one_edge_mfail_upper, one_edge_mfail_lower = bridge.calculate_one_edge_mfail()
+    two_edge_mfail_upper, two_edge_mfail_lower = bridge.calculate_two_edge_mfail()
+    linear_stress_mfail_upper, linear_stress_mfail_lower = bridge.calculate_linear_stress_mfail()
+
+    vfail = [matboard_vfail, glue_vfail, buckling_vfail]
+    mfail_upper = [tensile_mfail_upper,
+                   compressive_mfail_upper,
+                   one_edge_mfail_upper,
+                   two_edge_mfail_upper,
+                   linear_stress_mfail_upper]
+    mfail_lower = [tensile_mfail_lower,
+                   compressive_mfail_lower,
+                   one_edge_mfail_lower,
+                   two_edge_mfail_lower,
+                   linear_stress_mfail_lower]
+    # Factor of safety against shear
+    fos_shear = bridge.calculate_shear_fos(sfd, vfail)
+    # Factor of safety against bending moment
+    fos_moment = bridge.calculate_moment_fos(bmd, mfail_upper, mfail_lower)
+\end{minted}
 
 \subsubsection{Shear Failure}
 
@@ -148,6 +213,31 @@ bottom is in compression/tension.
     \centering
     \includegraphics[width=\textwidth]{localbuckling.png}
     \caption{3 cases of local buckling.}
+    \label{fig:local_buckling}
 \end{figure}
+
+\subsubsection{Factors of Safety}
+
+Verifies \mintinline{python}{Bridge.calculate_shear_fos()} and \mintinline{python}{Bridge.calculate_moment_fos()}.
+
+Failure shear force was determined previously to be \(675.90\si{N}\) (from matboard shear). Therefore
+\(\text{FoS}_{\text{shear}} = \frac{675.90}{238} = 2.84\).
+
+Failure bending moment was determined previous to be
+\(\SI{44.5e3}{N.mm}\) (from local buckling of the middle top flange, with two edges restrained). Therefore
+\(\text{FoS}_{\text{moment}} = \frac{\num{44.5e3}}{\num{55.5e3}} = 0.802\) (i.e. the bridge fails by bending).
+
+Note the maximum shear force and bending moment demand used here are determined by
+\mintinline{python}{Bridge.max_sfd_train()} and \mintinline{python}{Bridge.max_bmd_train()} by sampling over 500 train
+positions.
+
+\subsubsection{Failure Load Calculation}
+
+See Figure \ref{fig:local_buckling}. The limiting factor, as described above, is the two-edge local buckling of the middle top
+flange. Using this failure moment the failure load is determined to be \(187.1\si{N}\).
+
+\subsection{Midspan Deflection}
+
+{\color{red}TODO}
 
 \end{document}
