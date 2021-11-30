@@ -131,22 +131,13 @@ These numbers can be obtained by running \texttt{python3 bridgedesigner.py desig
     print("Centroidal Q:", cs.calculate_q(cs.ybar))
 \end{minted}
 
-\begin{figure}[h]
+\begin{figure}[H]
     \centering
-    \includegraphics[width=0.5\textwidth]{cs.png}
+    \includegraphics[width=0.75\textwidth]{crosssection.png}
     \caption{Cross-sectional geometry.}
 \end{figure}
 
-\begin{align*}
-    A &= 100t + 2 \cdot 10t + 2 \cdot (75 - t)t + (80 - 2t)t = 438\si{mm^2} \\
-    \bar{y} &= \frac{100t\left(75 - \frac{t}{2}\right) + 2 \cdot 10t(75 - t - \frac{t}{2}) + 2 \cdot (75 - t)t\frac{75 - t}{2} + (80 - 2t)t\frac{t}{2}}{A} = 41.7\si{mm}\\
-    I &= \frac{100t^3}{12} + 100t\left(75 - \frac{t}{2} - \bar{y}\right)^2 \\
-        & + 2\left(\frac{10t^3}{12} + 10t\left(75 - t - \frac{t}{2} - \bar{y}\right)^2 + \frac{t(75 - t)^2}{12} + (75 - t)t\left(\frac{75 - t}{2} - \bar{y}\right)^2\right) \\
-        &+ \frac{(80 - 2t)t^3}{12} + (80 - 2t)t\left(\frac{t}{2} - \bar{y}\right)^2 \\
-      &= \SI{416e3}{mm^4}
-\end{align*}
-
-\begin{figure}[h]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.7\textwidth]{qcent.png}
     \caption{Computing \(Q\) at the centroidal axis.}
@@ -202,12 +193,11 @@ and \mintinline{python}{Bridge.calculate_<mode>_vfail()} methods. These numbers 
 Note two values are calculated for each one because the values could be different depending on whether the top or the
 bottom is in compression/tension.
 
-\begin{alignat*}{2}
-    \text{Tensile Failure: }&\sigma_t = \frac{M_{fail}y}{I} \implies M_{fail} = \frac{\sigma_t I}{y} &= \frac{30 \cdot 415685}{41.70} = \SI{229e3}{N.mm} \\
-        & &= \frac{30 \cdot 415685}{41.70 - 75} = \SI{375e3}{N.mm} \\
-    \text{Compressive Failure: }&\sigma_c = \frac{M_{fail}y}{I} \implies M_{fail} = \frac{\sigma_c I}{y} &= \frac{6 \cdot 415685}{41.70} = \SI{59.8e3}{N.mm} \\
-        & &= \frac{6 \cdot 415685}{41.70 - 75} = \SI{74.9e3}{N.mm} \\
-\end{alignat*}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{tensile_compressive_failure.png}
+    \caption{Tensile and compressive \(M_{fail}\) calculation.}
+\end{figure}
 
 \begin{figure}[H]
     \centering
