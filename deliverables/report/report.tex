@@ -20,7 +20,8 @@
 		\huge Bridge Project  \\
         
 \selectlanguage{english}
-\author{Ivy Tan, Tyler Tian, Julia Ye}
+\author{Group 701: Ivy Tan, Tyler Tian, Julia Ye (TA: Laurence Yin)}
+\date{\today}
 }
 
 \begin{document}
@@ -158,7 +159,7 @@ Bending Moment &   $1.554$ \\
 \end{figure}
 \newpage
 \subsection*{Point Load}
-The bridge survives point loads of $200\si{N}$ and fails at $1032\si{N}$ by compression (crushing) of the top.
+The bridge survives point loads of $200\si{N}$ and fails at $2064\si{N}$ in total by compression (crushing) of the top.
 Midspan deflection under $P = 200$ is $0.470\si{mm}$.
 \begin{table}[h]
 \begin{center}
@@ -204,7 +205,7 @@ Bending Moment &   $5.16$ \\
     \begin{itemize}
         \item Matboard is not long enough for a 1300mm bridge. The joint consists of a $1\si{cm}$ overlap of the walls glued together to resist shear, and reinforcements were later added to resist tension.
     \end{itemize}
-    \item Addition of Diaphragms
+    \item Addition of diaphragms
     \begin{itemize}
         \item $\tau_{crit} = \frac{5\pi^2E}{12(1-\mu^2)}\left[\left(\frac{t}{b}\right)^2+\left(\frac{t}{a}\right)^2\right] = \frac{VQ}{Ib}$
         \item Decreases $a$ for shear buckling, which is now a limiting factor due to the added height. 
@@ -314,10 +315,25 @@ Bending Moment &   $5.16$ \\
     \end{figure}
 
 \end{enumerate}
+\section*{Deviation from Predicted Failure Load}
+Assuming the code functioned properly, the theoretical predicted failure load is 2064N in total. However, due to construction errors and the limitations of the equations that were used in calculations, we predicted that the experimental failure load would be around 1000N. \\
+\newline
+\subsection*{Sources of Errors that Could Detract the Bridge Performance}
+\begin{enumerate}
+    \item When folding the matboard at some scored locations, there was shear between the layers of matboard, causing the layers to separate.
+    \item There was one diaphragm that was placed slightly off, which required an additional piece of top reinforcement to cover it. 
+    \item The internal width of the bridge was intended to be the same as width as the diaphragms. However, the bridge width appeared to be wider, causing vertical parts of the diaphragms failing to fully connect to the sides of the bridge. More glue was applied and additional pieces were added on the sides of the diaphragms to counteract this problem. 
+    \item As the top of the matboard was slightly curved, the top parts of a few diaphragms failed to glue to the top of the bridge.
+\end{enumerate}
+\subsection*{Justification for the Newly Predicted Value}
+\begin{enumerate}
+    \item Most of our deviations comes from the diaphragms. The code predicted that in the worst case, if no diaphragms were effective, the bridge can hold about 850N in total.
+    \item Teaching Assistants have informed us that most bridges can hold around 50\% of their predicted load.
+\end{enumerate}
 \section*{Workload Distribution}
-Code: Tyler Tian\\
-Handwritten Calculations: Ivy Tan, Julia Ye\\
-Report: Julia Ye, Tyler Tian\\
-Engineering Drawings: Ivy Tan\\
-Bridge Optimization: Tyler Tian, Ivy Tan, Julia Ye\\
+Code: Tyler\\
+Handwritten Calculations: Ivy, Julia\\
+Report: Julia, Tyler\\
+Engineering Drawings: Ivy\\
+Bridge Optimization: Tyler, Ivy, Julia\\
 \end{document}
