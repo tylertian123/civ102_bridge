@@ -143,6 +143,16 @@ def load(ctx, load_type: str, load_amount: str, mfail: List[str], vfail: List[st
     x = np.arange(0, bridge.length)
     fig, (ax1, ax2) = plt.subplots(1, 2)
     fig.canvas.set_window_title("SFD and BMD")
+    title = ""
+    if load_type == "train":
+        title += "Train Loading"
+        if load_amount == "max":
+            title += " (Maximum)"
+        else:
+            title += f" (Location: {load_amount})"
+    else:
+        title += f"Point Loading (P = {load_amount}N, Total Load: {float(load_amount) * 2}N)"
+    fig.suptitle(title, fontsize=14)
     ax1.set_title("SFD")
     ax1.set_xlabel("Location (mm)")
     ax1.set_ylabel("Shear Force (N)")
